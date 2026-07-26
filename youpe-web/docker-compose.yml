@@ -11,6 +11,8 @@ services:
       # YTDLP_COOKIES_FILE: /cookies/cookies.txt
       # Proxy dân cư, dùng khi IP máy chủ bị siết.
       # YTDLP_PROXY: http://user:pass@host:port
-    # volumes:
-    #   - ./cookies:/cookies:ro
+    volumes:
+      # Dữ liệu tài khoản — nhớ sao lưu thư mục này
+      - ./data:/app/data
+      # - ./cookies:/cookies:ro
     restart: unless-stopped

@@ -1,0 +1,55 @@
+# ---- Source tham khảo, không đưa lên repo ----
+YMusic-Youtube-Multilingual-Music-Player-for-Android-master/
+YMusic-Youtube-Multilingual-Music-Player-for-Android-master.zip
+
+# ---- Node / Next.js ----
+node_modules/
+.next/
+out/
+build/
+dist/
+*.tsbuildinfo
+next-env.d.ts
+
+# ---- Biến môi trường & dữ liệu ----
+.env
+.env.local
+.env.*.local
+data/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.db
+
+# ---- yt-dlp tải về ----
+youpe-web/bin/*
+!youpe-web/bin/.gitkeep
+
+# ---- Android ----
+.gradle/
+local.properties
+*.apk
+*.aab
+*.keystore
+*.jks
+captures/
+.cxx/
+app/release/
+
+# ---- IDE ----
+.idea/
+.vscode/
+*.iml
+*.iws
+*.ipr
+
+# ---- Hệ điều hành ----
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---- Log ----
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

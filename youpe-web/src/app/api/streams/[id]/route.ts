@@ -15,6 +15,20 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   const origin = req.nextUrl.origin;
   const proxy = (u: string) => `${origin}/api/stream?u=${encodeURIComponent(u)}`;
 
+  /**
+   * Lọc codec cho thiết bị yếu.
+   *
+   * Nhiều Android TV box đời rẻ chỉ có bộ giải mã phần cứng cho H.264, gặp VP9
+   * hay AV1 là phải giải mã bằng CPU nên giật, gặp Opus thì mất tiếng hẳn.
+   *   ?codec=h264   chỉ H.264 + AAC
+   *   ?tv=1         viết tắt của codec=h264
+   *   ?maxHeight=   chặn trần độ phân giải
+   */
+  const wantH264 =
+    req.nextUrl.searchParams.get('tv') === '1' ||
+    req.nextUrl.searchParams.get('codec') === 'h264';
+  const maxHeight = Number(req.nextUrl.searchParams.get('maxHeight')) || 0;
+
   const t0 = Date.now();
 
   try {
@@ -51,8 +65,13 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       return score(b) - score(a);
     };
 
+    const isH264 = (c: string) => /^avc/i.test(c);
+    const isAac = (c: string) => /^mp4a/i.test(c);
+
     const video = result.formats
       .filter((f) => f.kind === 'video' && f.height)
+      .filter((f) => !wantH264 || isH264(f.codecs))
+      .filter((f) => !maxHeight || (f.height ?? 0) <= maxHeight)
       .sort((a, b) => (b.height ?? 0) - (a.height ?? 0) || prefer(a, b))
       .map(shape);
 
@@ -61,6 +80,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     const TARGET_AUDIO = Number(process.env.AUDIO_TARGET_BPS ?? 128_000);
     const audio = result.formats
       .filter((f) => f.kind === 'audio')
+      .filter((f) => !wantH264 || isAac(f.codecs))
       .sort((a, b) => {
         const p = prefer(a, b);
         if (p) return p;
@@ -78,6 +98,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       source: result.source,
       cached: !!cached,
       ms,
+      filters: { h264: wantH264, maxHeight: maxHeight || null },
       dash: dashReady ? `/api/manifest/${id}` : null,
       title: result.title,
       duration: result.durationSec,

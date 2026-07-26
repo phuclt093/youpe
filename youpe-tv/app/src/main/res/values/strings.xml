@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">youpe</string>
+    <string name="setup_title">Kết nối tới server youpe</string>
+    <string name="setup_hint">Ví dụ: http://192.168.1.10:3000</string>
+    <string name="setup_help">Mở terminal trên máy chạy server và gõ ipconfig (Windows) hoặc ip addr (Linux) để xem địa chỉ IP nội bộ.</string>
+    <string name="connect">Kết nối</string>
+    <string name="search">Tìm kiếm</string>
+    <string name="retry">Thử lại</string>
+    <string name="loading">Đang tải…</string>
+</resources>

@@ -296,18 +296,61 @@ lịch sử và các danh sách theo được sang thiết bị khác.
 - Mật khẩu băm bằng `scrypt` kèm salt riêng cho từng người, so sánh bằng `timingSafeEqual`.
 - Phiên đăng nhập là token ngẫu nhiên 32 byte, lưu trong cookie `httpOnly` + `sameSite=lax`,
   hạn 30 ngày. Cookie bật `secure` khi chạy production.
-- Dữ liệu nằm ở `data/youpe.json` — kho JSON tự viết trong `src/lib/db.ts`, ghi qua file
-  tạm rồi `rename` nên mất điện giữa chừng không hỏng dữ liệu cũ.
 
-Không dùng SQLite vì `better-sqlite3` phải biên dịch native, hay vỡ khi đổi phiên bản Node
-và làm image Docker phình to. Ở quy mô vài người dùng thì file JSON là đủ; cần lớn hơn thì
-thay riêng `src/lib/db.ts`, phần còn lại không phải sửa.
+### Nơi lưu
+
+`src/lib/db.ts` là lớp chọn backend, điều khiển bằng `DB_DRIVER` trong `.env`:
+
+| Giá trị | Kết quả |
+|---|---|
+| `auto` (mặc định) | Có `node:sqlite` thì dùng SQLite, không thì quay về JSON |
+| `sqlite` | Ép dùng `data/youpe.sqlite` |
+| `json` | Ép dùng `data/youpe.json` |
+
+**SQLite dùng module `node:sqlite` có sẵn trong Node 22.5+** — không phải cài gói nào,
+không có bước biên dịch native. Đây là điểm khác với `better-sqlite3`: gói đó phải biên
+dịch, hỏng ngay lần thử đầu và sẽ còn hỏng lại mỗi khi đổi phiên bản Node hoặc build Docker.
+
+Lần đầu chạy với SQLite, dữ liệu trong `data/youpe.json` được **chuyển sang tự động**, file
+cũ đổi tên thành `youpe.json.migrated` chứ không xoá. Kiểm tra bằng dòng log lúc khởi động:
+
+```
+[db] đang dùng sqlite
+[db] đã chuyển dữ liệu từ youpe.json sang youpe.sqlite
+```
+
+Khi nào nên đổi tiếp sang PostgreSQL: chạy nhiều bản ứng dụng song song, hoặc cần bản sao
+lưu tự động theo thời gian. Dưới mức đó thì SQLite thoải mái cho hàng nghìn người dùng.
 
 **Chưa đăng nhập** thì mọi thứ vẫn chạy như cũ bằng `localStorage`. **Đăng nhập lần đầu**
 sẽ đẩy dữ liệu đang có ở máy lên server rồi kéo về, nên không mất gì. Sau đó `localStorage`
 đóng vai bộ nhớ đệm để giao diện phản hồi tức thì, còn server là nguồn thật.
 
 Nhớ sao lưu `data/` — mất file là mất tài khoản.
+
+## Ứng dụng Android TV
+
+Thư mục `../youpe-tv` là client Android TV viết bằng Kotlin, gọi sang chính server này
+qua LAN. Toàn bộ phần khó vẫn nằm ở đây — trích xuất, trộn gợi ý, cache — nên app TV rất
+nhẹ và không phải chạy yt-dlp trên box.
+
+Để TV box gọi được, server phải nghe trên mọi địa chỉ chứ không chỉ localhost:
+
+```bash
+npx next dev -H 0.0.0.0
+# hoặc bản production
+npx next start -H 0.0.0.0
+```
+
+Hai tham số thêm vào `/api/streams` dành cho thiết bị yếu:
+
+| Tham số | Tác dụng |
+|---|---|
+| `?tv=1` hoặc `?codec=h264` | Chỉ trả H.264 + AAC |
+| `?maxHeight=720` | Chặn trần độ phân giải |
+
+Nhiều Android TV box đời rẻ chỉ có bộ giải mã phần cứng cho H.264; gặp VP9 hay AV1 phải
+giải mã bằng CPU nên giật, gặp Opus thì mất tiếng hẳn.
 
 ## Còn thiếu / hướng phát triển tiếp
 

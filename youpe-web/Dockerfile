@@ -28,6 +28,11 @@ COPY --from=builder /app/public ./public
 
 ENV YTDLP_PATH=/usr/local/bin/yt-dlp
 ENV PORT=3000
+# node:sqlite có sẵn trong Node 22.5+, không cần cài gói nào
+ENV DB_DRIVER=auto
+
+# Dữ liệu tài khoản nằm ngoài image để không mất khi build lại
+VOLUME ["/app/data"]
 EXPOSE 3000
 
 CMD ["npm", "start"]

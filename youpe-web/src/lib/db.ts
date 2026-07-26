@@ -1,163 +1,85 @@
-import { mkdirSync, readFileSync, renameSync, writeFileSync, existsSync } from 'node:fs';
-import path from 'node:path';
 import type { VideoItem } from './types';
+import type { UserRow, SessionRow, LibraryRow } from './db-json';
+import * as jsonStore from './db-json';
+
+export type { UserRow, SessionRow, LibraryRow };
 
 /**
- * Kho dữ liệu bằng file JSON.
+ * Lớp chọn backend lưu trữ.
  *
- * Vì sao không dùng SQLite: better-sqlite3 phải biên dịch native, dễ vỡ mỗi khi
- * đổi phiên bản Node và làm image Docker phình to. Ở quy mô vài người dùng thì
- * đọc hết vào RAM rồi ghi lại cả file là quá đủ, mà không thêm phụ thuộc nào.
- * Khi nào cần nhiều người dùng thật thì thay riêng file này là xong.
+ *   DB_DRIVER=sqlite  ép dùng SQLite
+ *   DB_DRIVER=json    ép dùng file JSON
+ *   DB_DRIVER=auto    (mặc định) có `node:sqlite` thì dùng, không thì quay về JSON
+ *
+ * `node:sqlite` nằm sẵn trong Node 22.5+ nên không phải cài gói nào và không có
+ * bước biên dịch native — chính là thứ đã làm hỏng lần thử better-sqlite3.
+ * Lần đầu chạy với SQLite, dữ liệu trong `data/youpe.json` được chuyển sang tự động.
  */
 
-export type UserRow = {
-  id: number;
-  email: string;
-  name: string;
-  passwordHash: string;
-  createdAt: number;
+type Store = {
+  findUserByEmailRow(email: string): UserRow | undefined;
+  findUserById(id: number): UserRow | undefined;
+  insertUser(email: string, name: string, passwordHash: string): UserRow;
+  insertSession(token: string, userId: number, expiresAt: number): void;
+  getSession(token: string): SessionRow | undefined;
+  deleteSession(token: string): void;
+  pruneSessions(): void;
+  libraryList(userId: number, list: string): LibraryRow[];
+  libraryUpsert(userId: number, list: string, video: VideoItem): void;
+  libraryRemove(userId: number, list: string, videoId: string): void;
+  libraryClear(userId: number, list: string): void;
 };
 
-export type SessionRow = { token: string; userId: number; expiresAt: number };
-
-export type LibraryRow = VideoItem & { savedAt: number };
-
-type Shape = {
-  nextUserId: number;
-  users: UserRow[];
-  sessions: Record<string, SessionRow>;
-  /** userId -> list -> videoId -> bản ghi */
-  library: Record<string, Record<string, Record<string, LibraryRow>>>;
-};
-
-const EMPTY: Shape = { nextUserId: 1, users: [], sessions: {}, library: {} };
-
-const dir = path.resolve(process.cwd(), 'data');
-const file = path.join(dir, 'youpe.json');
-
-function load(): Shape {
+function sqliteAvailable(): boolean {
   try {
-    mkdirSync(dir, { recursive: true });
-    if (!existsSync(file)) return structuredClone(EMPTY);
-    return { ...structuredClone(EMPTY), ...JSON.parse(readFileSync(file, 'utf-8')) };
+    require('node:sqlite');
+    return true;
   } catch {
-    return structuredClone(EMPTY);
+    return false;
   }
+}
+
+function pick(): { store: Store; driver: string } {
+  const want = (process.env.DB_DRIVER ?? 'auto').toLowerCase();
+
+  if (want !== 'json' && (want === 'sqlite' || sqliteAvailable())) {
+    try {
+      return { store: require('./db-sqlite') as Store, driver: 'sqlite' };
+    } catch (e) {
+      console.error('[db] không mở được SQLite, quay về JSON:', e);
+    }
+  }
+
+  if (want === 'sqlite') {
+    console.warn('[db] DB_DRIVER=sqlite nhưng node:sqlite không dùng được — cần Node 22.5 trở lên');
+  }
+
+  return { store: jsonStore as Store, driver: 'json' };
 }
 
 const g = globalThis as any;
-const state: Shape = g.__youpeStore ?? (g.__youpeStore = load());
+const picked: { store: Store; driver: string } = g.__youpeStoreDriver ?? (g.__youpeStoreDriver = pick());
 
-let pending: NodeJS.Timeout | null = null;
+export const dbDriver = picked.driver;
+const store = picked.store;
 
-/** Ghi ra file tạm rồi rename — mất điện giữa chừng cũng không hỏng dữ liệu cũ */
-function flush() {
-  pending = null;
-  try {
-    mkdirSync(dir, { recursive: true });
-    const tmp = file + '.tmp';
-    writeFileSync(tmp, JSON.stringify(state), 'utf-8');
-    renameSync(tmp, file);
-  } catch (e) {
-    console.error('[store] ghi file hỏng:', e);
-  }
+if (!g.__youpeDbLogged) {
+  g.__youpeDbLogged = true;
+  console.info(`[db] đang dùng ${dbDriver}`);
 }
 
-/** Gom nhiều thay đổi liên tiếp thành một lần ghi */
-function save() {
-  if (pending) return;
-  pending = setTimeout(flush, 150);
-}
+/* ---------------- API dùng chung ---------------- */
 
-/* ---------------- users ---------------- */
+export const findUserByEmailRow: Store['findUserByEmailRow'] = (e) => store.findUserByEmailRow(e);
+export const findUserById: Store['findUserById'] = (id) => store.findUserById(id);
+export const insertUser: Store['insertUser'] = (e, n, h) => store.insertUser(e, n, h);
 
-export function findUserByEmailRow(email: string): UserRow | undefined {
-  const e = email.trim().toLowerCase();
-  return state.users.find((u) => u.email === e);
-}
+export const insertSession: Store['insertSession'] = (t, u, x) => store.insertSession(t, u, x);
+export const getSession: Store['getSession'] = (t) => store.getSession(t);
+export const deleteSession: Store['deleteSession'] = (t) => store.deleteSession(t);
+export const pruneSessions: Store['pruneSessions'] = () => store.pruneSessions();
 
-export function findUserById(id: number): UserRow | undefined {
-  return state.users.find((u) => u.id === id);
-}
-
-export function insertUser(email: string, name: string, passwordHash: string): UserRow {
-  const row: UserRow = {
-    id: state.nextUserId++,
-    email: email.trim().toLowerCase(),
-    name,
-    passwordHash,
-    createdAt: Date.now(),
-  };
-  state.users.push(row);
-  save();
-  return row;
-}
-
-/* ---------------- sessions ---------------- */
-
-export function insertSession(token: string, userId: number, expiresAt: number) {
-  state.sessions[token] = { token, userId, expiresAt };
-  save();
-}
-
-export function getSession(token: string): SessionRow | undefined {
-  return state.sessions[token];
-}
-
-export function deleteSession(token: string) {
-  delete state.sessions[token];
-  save();
-}
-
-/** Dọn phiên hết hạn, chạy một lần lúc nạp module */
-export function pruneSessions() {
-  const now = Date.now();
-  let changed = false;
-  for (const [t, s] of Object.entries(state.sessions)) {
-    if (s.expiresAt < now) {
-      delete state.sessions[t];
-      changed = true;
-    }
-  }
-  if (changed) save();
-}
-pruneSessions();
-
-/* ---------------- library ---------------- */
-
-const MAX_PER_LIST = 500;
-
-function bucket(userId: number, list: string) {
-  const u = (state.library[userId] ??= {});
-  return (u[list] ??= {});
-}
-
-export function libraryList(userId: number, list: string): LibraryRow[] {
-  return Object.values(bucket(userId, list)).sort((a, b) => b.savedAt - a.savedAt);
-}
-
-export function libraryUpsert(userId: number, list: string, video: VideoItem) {
-  const b = bucket(userId, list);
-  b[video.id] = { ...video, savedAt: Date.now() };
-
-  const items = Object.values(b);
-  if (items.length > MAX_PER_LIST) {
-    items
-      .sort((a, b2) => b2.savedAt - a.savedAt)
-      .slice(MAX_PER_LIST)
-      .forEach((old) => delete b[old.id]);
-  }
-  save();
-}
-
-export function libraryRemove(userId: number, list: string, videoId: string) {
-  delete bucket(userId, list)[videoId];
-  save();
-}
-
-export function libraryClear(userId: number, list: string) {
-  const u = state.library[userId];
-  if (u) delete u[list];
-  save();
-}
+export const libraryList: Store['libraryList'] = (u, l) => store.libraryList(u, l);
+export const libraryUpsert: Store['libraryUpsert'] = (u, l, v) => store.libraryUpsert(u, l, v);
+export const libraryRemove: Store['libraryRemove'] = (u, l, v) => store.libraryRemove(u, l, v);
+export const libraryClear: Store['libraryClear'] = (u, l) => store.libraryClear(u, l);
