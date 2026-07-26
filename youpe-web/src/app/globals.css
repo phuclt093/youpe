@@ -1,0 +1,97 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { color-scheme: dark; }
+
+html, body {
+  background: #0f0f0f;
+  color: #f1f1f1;
+  font-family: Roboto, Arial, system-ui, sans-serif;
+}
+
+/* Scrollbar giống YouTube dark */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: #717171; border-radius: 8px; }
+::-webkit-scrollbar-thumb:hover { background: #909090; }
+::-webkit-scrollbar-track { background: transparent; }
+
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+.line-clamp-1 { display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient:vertical; overflow:hidden; }
+.line-clamp-2 { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+.line-clamp-3 { display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+
+@keyframes shimmer { 100% { transform: translateX(100%); } }
+.skeleton { position: relative; overflow: hidden; background: #272727; }
+.skeleton::after {
+  content: ''; position: absolute; inset: 0; transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.06), transparent);
+  animation: shimmer 1.4s infinite;
+}
+
+/* ---------- chuyển động ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes popIn {
+  from { opacity: 0; transform: scale(.96) translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.anim-fade-up { animation: fadeUp .38s cubic-bezier(.22,.61,.36,1) both; }
+.anim-fade-in { animation: fadeIn .25s ease both; }
+.anim-pop     { animation: popIn .16s cubic-bezier(.22,.61,.36,1) both; }
+
+/* Card video: ảnh phóng nhẹ, bo góc mở ra khi rê chuột */
+.card-thumb {
+  transition: border-radius .2s ease, transform .2s ease;
+  will-change: transform;
+}
+.group:hover .card-thumb { border-radius: 0; }
+.group:hover .card-thumb img { transform: scale(1.045); }
+.card-thumb img { transition: transform .45s cubic-bezier(.22,.61,.36,1); }
+
+.group:hover .card-title { color: #fff; }
+.card-title { transition: color .15s ease; }
+
+/* Nút bấm có phản hồi */
+button, a[role='button'] { transition: background-color .15s ease, color .15s ease, transform .12s ease; }
+button:active:not(:disabled) { transform: scale(.94); }
+
+/* Thanh tua: dày lên khi rê chuột, giống YouTube */
+.seek-bar { transition: height .12s ease, transform .12s ease; }
+.seek-wrap:hover .seek-bar { height: 5px; }
+
+/* Focus rõ ràng cho bàn phím */
+:focus-visible { outline: 2px solid #3ea6ff; outline-offset: 2px; border-radius: 4px; }
+
+/* Cuộn mượt khi dùng phím tắt / mũi tên chip */
+html { scroll-behavior: smooth; }
+
+/* Ô tìm kiếm: viền sáng nhẹ khi focus, giống YouTube */
+.search-focus:focus-within {
+  border-color: #3ea6ff;
+  box-shadow: inset 0 0 0 1px rgba(62, 166, 255, .35);
+}
+
+/* Ảnh chưa tải xong thì nền tối thay vì nháy trắng */
+img { background-color: #212121; }
+
+/* Chip đang chọn: nổi hơn chút */
+.chip-active { box-shadow: 0 0 0 1px rgba(255, 255, 255, .15); }

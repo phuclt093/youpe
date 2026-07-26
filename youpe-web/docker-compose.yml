@@ -1,0 +1,16 @@
+services:
+  youpe:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      YT_LANG: vi
+      YT_REGION: VN
+      YTDLP_PATH: /usr/local/bin/yt-dlp
+      # File cookie xuất từ trình duyệt — gắn vào nếu bị YouTube chặn.
+      # YTDLP_COOKIES_FILE: /cookies/cookies.txt
+      # Proxy dân cư, dùng khi IP máy chủ bị siết.
+      # YTDLP_PROXY: http://user:pass@host:port
+    # volumes:
+    #   - ./cookies:/cookies:ro
+    restart: unless-stopped
