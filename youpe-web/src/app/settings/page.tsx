@@ -100,6 +100,13 @@ export default function SettingsPage() {
 
       <Section title="Giao diện">
         <Toggle
+          label="Xem trước khi rê chuột"
+          hint="Rê chuột lên thumbnail và giữ khoảng một giây thì phát thử đoạn video, không tiếng. Dùng luồng thấp nhất nhưng vẫn tốn dữ liệu — tắt nếu mạng yếu."
+          value={prefs.hoverPreview}
+          onChange={(v) => update('hoverPreview', v)}
+        />
+
+        <Toggle
           label="Hiệu ứng chuyển động"
           hint="Tắt nếu thấy giật khi cuộn trang."
           value={prefs.animations}

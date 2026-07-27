@@ -104,6 +104,8 @@ export default function PlayerHost({ children }: { children: React.ReactNode }) 
   const [mode, setModeRaw] = useState<Mode>('full');
   const [theater, setTheater] = useState(false);
   const [box, setBox] = useState<Box | null>(null);
+  /** Trình duyệt đang giữ video trong cửa sổ nổi riêng của nó */
+  const [nativePip, setNativePip] = useState(false);
 
   const slotRef = useRef<HTMLDivElement | null>(null);
   const apiRef = useRef<{ seek: (t: number) => void } | null>(null);
@@ -123,6 +125,30 @@ export default function PlayerHost({ children }: { children: React.ReactNode }) 
     };
   }, []);
 
+  /**
+   * Cửa sổ nổi của trình duyệt và cửa sổ nhỏ của app là hai cách làm cùng một việc.
+   * Bật cả hai thì thẻ `<video>` bị trình duyệt bốc đi, chỗ cũ chỉ còn lại một ô đen
+   * ghi "Playing in picture-in-picture" — trông đúng như một lỗi giao diện.
+   * Nên khi cửa sổ nổi bật lên thì ẩn hẳn cửa sổ nhỏ đi.
+   */
+  useEffect(() => {
+    const on = () => setNativePip(true);
+    const off = () => setNativePip(false);
+    document.addEventListener('enterpictureinpicture', on, true);
+    document.addEventListener('leavepictureinpicture', off, true);
+    return () => {
+      document.removeEventListener('enterpictureinpicture', on, true);
+      document.removeEventListener('leavepictureinpicture', off, true);
+    };
+  }, []);
+
+  // quay lại trang xem thì kéo video ra khỏi cửa sổ nổi, không thì trang xem trống trơn
+  useEffect(() => {
+    if (mode === 'full' && document.pictureInPictureElement) {
+      document.exitPictureInPicture().catch(() => {});
+    }
+  }, [mode]);
+
   /* ---------- di chuyển thẻ chứa khi đổi chế độ ---------- */
   const place = useCallback(() => {
     if (!host) return;
@@ -136,12 +162,13 @@ export default function PlayerHost({ children }: { children: React.ReactNode }) 
 
     const b = box ?? clampBox(defaultBox());
     host.className =
-      'fixed z-[120] overflow-hidden rounded-xl bg-yt-bg shadow-2xl ring-1 ring-white/10';
+      'fixed z-[120] overflow-hidden rounded-xl bg-yt-bg shadow-2xl ring-1 ring-white/10' +
+      (nativePip ? ' invisible pointer-events-none' : '');
     host.style.left = `${b.x}px`;
     host.style.top = `${b.y}px`;
     host.style.width = `${b.w}px`;
     if (host.parentElement !== document.body) document.body.appendChild(host);
-  }, [host, mode, box]);
+  }, [host, mode, box, nativePip]);
 
   useEffect(place, [place, current]);
 

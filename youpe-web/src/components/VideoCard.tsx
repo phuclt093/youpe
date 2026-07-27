@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import type { VideoItem } from '@/lib/types';
 import { formatDuration, viPublished } from '@/lib/format';
@@ -10,10 +10,16 @@ import {
   prefetchOnHover, type PrefetchState,
 } from '@/lib/prefetch';
 import { onProgressChange, progressRatio } from '@/lib/progress';
+import {
+  claimPreview, getPreviewUrl, isPreviewActive, previewEnabled, releasePreview,
+} from '@/lib/preview';
 
-export function Thumb({ v }: { v: VideoItem }) {
+export function Thumb({ v, hovered = false }: { v: VideoItem; hovered?: boolean }) {
   const [ratio, setRatio] = useState(0);
   const [warm, setWarm] = useState<PrefetchState>('idle');
+  const [preview, setPreview] = useState<string | null>(null);
+  const [previewOn, setPreviewOn] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
     setWarm(getPrefetchState(v.id));
@@ -29,6 +35,44 @@ export function Thumb({ v }: { v: VideoItem }) {
     return onProgressChange(read);
   }, [v.id]);
 
+  /**
+   * Xem trước: rê chuột giữ đủ lâu mới lấy luồng và phát.
+   * Chờ 700ms để lướt qua nhiều card không kích hoạt hàng loạt.
+   */
+  useEffect(() => {
+    if (!hovered || v.isLive || !previewEnabled()) {
+      releasePreview(v.id);
+      setPreviewOn(false);
+      return;
+    }
+
+    let alive = true;
+    const timer = setTimeout(async () => {
+      claimPreview(v.id);
+      const url = preview ?? (await getPreviewUrl(v.id));
+      // rê sang card khác trong lúc chờ thì bỏ
+      if (!alive || !isPreviewActive(v.id) || !url) return;
+
+      setPreview(url);
+      setPreviewOn(true);
+    }, 700);
+
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+      releasePreview(v.id);
+      setPreviewOn(false);
+    };
+  }, [hovered, v.id, v.isLive, preview]);
+
+  // bắt đầu phát ngay khi thẻ video sẵn sàng
+  useEffect(() => {
+    const el = videoRef.current;
+    if (!el || !previewOn) return;
+    el.currentTime = 0;
+    el.play().catch(() => {});
+  }, [previewOn]);
+
   return (
     <div className="card-thumb relative aspect-video w-full overflow-hidden rounded-xl bg-yt-elev">
       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -36,8 +80,31 @@ export function Thumb({ v }: { v: VideoItem }) {
         src={v.thumbnail}
         alt={v.title}
         loading="lazy"
-        className="h-full w-full object-cover"
+        className={`h-full w-full object-cover transition-opacity duration-300 ${
+          previewOn ? 'opacity-0' : 'opacity-100'
+        }`}
       />
+
+      {/* Xem trước: không tiếng, độ phân giải thấp nhất cho nhẹ băng thông */}
+      {/*
+        Ba thuộc tính disable* dưới đây là bắt buộc, không phải cho gọn:
+        Chromium tự gắn nút "cửa sổ nổi" lên mọi thẻ video đang phát, kể cả thẻ bé
+        như xem trước. Chạm phải là đoạn xem trước bị bốc ra cửa sổ nổi của hệ điều hành.
+      */}
+      {previewOn && preview && (
+        <video
+          ref={videoRef}
+          src={preview}
+          muted
+          playsInline
+          loop
+          preload="none"
+          disablePictureInPicture
+          disableRemotePlayback
+          controlsList="nodownload noplaybackrate noremoteplayback"
+          className="anim-fade-in pointer-events-none absolute inset-0 h-full w-full object-cover"
+        />
+      )}
       {v.isLive ? (
         <span className="absolute bottom-1 right-1 rounded bg-yt-red px-1 py-0.5 text-[11px] font-medium">
           TRỰC TIẾP
@@ -98,10 +165,18 @@ export default function VideoCard({
     if (index < 4) prefetchIdle(v.id, 1200 + index * 400);
   }, [v.id, index]);
 
+  const [hovered, setHovered] = useState(false);
+
   // nạp trước luồng phát để lúc bấm vào thì server đã có sẵn
   const warm = {
-    onMouseEnter: () => prefetchOnHover(v.id),
-    onMouseLeave: () => cancelPrefetch(v.id),
+    onMouseEnter: () => {
+      setHovered(true);
+      prefetchOnHover(v.id);
+    },
+    onMouseLeave: () => {
+      setHovered(false);
+      cancelPrefetch(v.id);
+    },
     onMouseDown: () => prefetchNow(v.id),
     onTouchStart: () => prefetchNow(v.id),
   };
@@ -109,7 +184,7 @@ export default function VideoCard({
     return (
       <Link href={`/watch?v=${v.id}`} style={delay} {...warm} className="anim-fade-up group flex gap-2">
         <div className="w-[168px] shrink-0">
-          <Thumb v={v} />
+          <Thumb v={v} hovered={hovered} />
         </div>
         <div className="min-w-0 flex-1 pt-0.5">
           <h3 className="card-title line-clamp-2 text-sm font-medium leading-5">{v.title}</h3>
@@ -129,7 +204,7 @@ export default function VideoCard({
 
   return (
     <Link href={`/watch?v=${v.id}`} style={delay} {...warm} className="anim-fade-up group flex flex-col">
-      <Thumb v={v} />
+      <Thumb v={v} hovered={hovered} />
       <div className="mt-3 flex gap-3">
         {v.author.avatar ? (
           // eslint-disable-next-line @next/next/no-img-element

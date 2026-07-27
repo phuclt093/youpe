@@ -11,6 +11,8 @@ export type Prefs = {
   playInBackground: boolean;
   /** Rời trang xem thì thu nhỏ thành cửa sổ con thay vì dừng hẳn */
   miniOnLeave: boolean;
+  /** Rê chuột lên thumbnail thì phát thử một đoạn không tiếng */
+  hoverPreview: boolean;
 };
 
 const DEFAULTS: Prefs = {
@@ -20,6 +22,7 @@ const DEFAULTS: Prefs = {
   animations: true,
   playInBackground: true,
   miniOnLeave: true,
+  hoverPreview: true,
 };
 
 const KEYS: Record<keyof Prefs, string> = {
@@ -29,6 +32,7 @@ const KEYS: Record<keyof Prefs, string> = {
   animations: 'youpe.animations',
   playInBackground: 'youpe.playInBackground',
   miniOnLeave: 'youpe.miniOnLeave',
+  hoverPreview: 'youpe.hoverPreview',
 };
 
 const EVENT = 'youpe-prefs';
@@ -51,6 +55,7 @@ export function getPrefs(): Prefs {
     animations: bool(KEYS.animations, DEFAULTS.animations),
     playInBackground: bool(KEYS.playInBackground, DEFAULTS.playInBackground),
     miniOnLeave: bool(KEYS.miniOnLeave, DEFAULTS.miniOnLeave),
+    hoverPreview: bool(KEYS.hoverPreview, DEFAULTS.hoverPreview),
   };
 }
 
