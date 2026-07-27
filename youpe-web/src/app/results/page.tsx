@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Thumb } from '@/components/VideoCard';
 import { viPublished } from '@/lib/format';
 import { VerifiedIcon } from '@/components/Icons';
+import EmptyState from '@/components/EmptyState';
 import { cancelPrefetch, prefetchNow, prefetchOnHover } from '@/lib/prefetch';
 import type { VideoItem, ChannelItem } from '@/lib/types';
 
@@ -105,7 +106,12 @@ export default function ResultsPage() {
       </div>
 
       {!loading && !videos.length && !channels.length && (
-        <p className="py-16 text-center text-yt-sub">Không có kết quả cho “{q}”.</p>
+        <EmptyState
+          title={`Không có kết quả cho "${q}"`}
+          hint="Thử từ khoá ngắn hơn, hoặc bỏ bớt dấu."
+          actionLabel="Về trang chủ"
+          actionHref="/"
+        />
       )}
     </div>
   );

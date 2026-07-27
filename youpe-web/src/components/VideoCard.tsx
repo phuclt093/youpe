@@ -1,12 +1,34 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import type { VideoItem } from '@/lib/types';
 import { formatDuration, viPublished } from '@/lib/format';
 import { VerifiedIcon } from './Icons';
-import { cancelPrefetch, prefetchNow, prefetchOnHover } from '@/lib/prefetch';
+import {
+  cancelPrefetch, getPrefetchState, onPrefetchChange, prefetchIdle, prefetchNow,
+  prefetchOnHover, type PrefetchState,
+} from '@/lib/prefetch';
+import { onProgressChange, progressRatio } from '@/lib/progress';
 
 export function Thumb({ v }: { v: VideoItem }) {
+  const [ratio, setRatio] = useState(0);
+  const [warm, setWarm] = useState<PrefetchState>('idle');
+
+  useEffect(() => {
+    setWarm(getPrefetchState(v.id));
+    return onPrefetchChange((id, st) => {
+      if (id === v.id) setWarm(st);
+    });
+  }, [v.id]);
+
+  // đọc sau khi dựng xong để tránh lệch giữa server và trình duyệt
+  useEffect(() => {
+    const read = () => setRatio(progressRatio(v.id));
+    read();
+    return onProgressChange(read);
+  }, [v.id]);
+
   return (
     <div className="card-thumb relative aspect-video w-full overflow-hidden rounded-xl bg-yt-elev">
       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -27,6 +49,30 @@ export function Thumb({ v }: { v: VideoItem }) {
           </span>
         )
       )}
+
+      {/*
+        Chấm báo trạng thái nạp trước. Không có phản hồi nhìn thấy được thì
+        không ai biết việc nạp trước có chạy hay không.
+      */}
+      {warm === 'loading' && (
+        <span
+          title="Đang chuẩn bị"
+          className="absolute left-1.5 top-1.5 h-2 w-2 animate-pulse rounded-full bg-white/70"
+        />
+      )}
+      {warm === 'ready' && (
+        <span
+          title="Đã sẵn sàng, bấm là phát ngay"
+          className="anim-fade-in absolute left-1.5 top-1.5 h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,.9)]"
+        />
+      )}
+
+      {/* vạch đỏ báo đã xem tới đâu */}
+      {ratio > 0.01 && (
+        <div className="absolute inset-x-0 bottom-0 h-1 bg-white/30">
+          <div className="h-full bg-yt-red" style={{ width: `${ratio * 100}%` }} />
+        </div>
+      )}
     </div>
   );
 }
@@ -42,6 +88,15 @@ export default function VideoCard({
 }) {
   // xuất hiện so le nhau cho đỡ khô, nhưng chặn trần để card cuối không chờ lâu
   const delay = { animationDelay: `${Math.min(index, 11) * 35}ms` };
+
+  /**
+   * Vài card đầu được nạp trước ngầm, không chờ rê chuột.
+   * Chờ rê chuột thì thường không kịp: trích xuất mất vài giây, mà người ta
+   * rê rồi bấm trong chưa tới một giây.
+   */
+  useEffect(() => {
+    if (index < 4) prefetchIdle(v.id, 1200 + index * 400);
+  }, [v.id, index]);
 
   // nạp trước luồng phát để lúc bấm vào thì server đã có sẵn
   const warm = {

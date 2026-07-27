@@ -41,6 +41,8 @@ type Ctx = {
   setMode: (m: Mode) => void;
   close: () => void;
   registerSlot: (el: HTMLDivElement | null) => void;
+  /** Tua trình phát tới giây thứ t — dùng cho mốc thời gian trong mô tả */
+  seek: (t: number) => void;
 };
 
 const PlayerCtx = createContext<Ctx>({
@@ -50,6 +52,7 @@ const PlayerCtx = createContext<Ctx>({
   setMode: () => {},
   close: () => {},
   registerSlot: () => {},
+  seek: () => {},
 });
 
 export const usePlayer = () => useContext(PlayerCtx);
@@ -103,6 +106,7 @@ export default function PlayerHost({ children }: { children: React.ReactNode }) 
   const [box, setBox] = useState<Box | null>(null);
 
   const slotRef = useRef<HTMLDivElement | null>(null);
+  const apiRef = useRef<{ seek: (t: number) => void } | null>(null);
   /** Người dùng tự bấm thu nhỏ thì giữ nguyên ý muốn đó, kể cả khi đang ở trang xem */
   const userChose = useRef(false);
 
@@ -140,6 +144,18 @@ export default function PlayerHost({ children }: { children: React.ReactNode }) 
   }, [host, mode, box]);
 
   useEffect(place, [place, current]);
+
+  // Esc đóng cửa sổ nhỏ
+  useEffect(() => {
+    if (mode !== 'mini') return;
+    const h = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      if (e.key === 'Escape') setCurrent(null);
+    };
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  }, [mode]);
 
   // đổi cỡ cửa sổ trình duyệt thì kéo cửa sổ nhỏ về trong màn hình
   useEffect(() => {
@@ -230,7 +246,7 @@ export default function PlayerHost({ children }: { children: React.ReactNode }) 
       const origin = { ...box };
 
       const move = (ev: PointerEvent) => {
-        // kéo cạnh trái: rộng ra thì mép trái lùi lại, mép phải đứng yên
+        // kéo sang trái là to ra: mép trái lùi lại, mép phải đứng yên
         const dx = startX - ev.clientX;
         const w = Math.min(Math.max(origin.w + dx, MIN_W), MAX_W);
         setBox(clampBox({ ...origin, w, x: origin.x + (origin.w - w) }));
@@ -250,9 +266,11 @@ export default function PlayerHost({ children }: { children: React.ReactNode }) 
     [box]
   );
 
+  const seek = useCallback((t: number) => apiRef.current?.seek(t), []);
+
   const value = useMemo<Ctx>(
-    () => ({ current, mode, play, setMode, close, registerSlot }),
-    [current, mode, play, setMode, close, registerSlot]
+    () => ({ current, mode, play, setMode, close, registerSlot, seek }),
+    [current, mode, play, setMode, close, registerSlot, seek]
   );
 
   return (
@@ -263,6 +281,16 @@ export default function PlayerHost({ children }: { children: React.ReactNode }) 
         current &&
         createPortal(
           <div className="relative">
+            {mode === 'mini' && (
+              <MiniBar
+                title={current.title}
+                channel={current.channelName}
+                onDragStart={startDrag}
+                onExpand={expand}
+                onClose={close}
+              />
+            )}
+
             <Player
               key={current.videoId}
               src={`/api/manifest/${current.videoId}`}
@@ -275,26 +303,47 @@ export default function PlayerHost({ children }: { children: React.ReactNode }) 
               onPickVideo={(next) => router.push(`/watch?v=${next}`)}
               compact={mode === 'mini'}
               onMinimize={() => setMode('mini')}
+              registerApi={(api) => {
+                apiRef.current = api;
+              }}
             />
 
             {mode === 'mini' && (
               <>
-                <MiniBar
-                  title={current.title}
-                  channel={current.channelName}
-                  onDragStart={startDrag}
-                  onExpand={expand}
-                  onClose={close}
-                />
+                {/*
+                  Nút nổi ngay trên khung hình. Thanh tiêu đề có thể bị đẩy ra ngoài
+                  màn hình khi cửa sổ nằm sát mép, nên luôn cần một lối đóng nữa.
+                */}
+                <div className="absolute right-2 top-14 flex gap-1">
+                  <button
+                    onClick={expand}
+                    title="Mở lại toàn màn hình"
+                    aria-label="Mở lại toàn màn hình"
+                    className="grid h-7 w-7 place-items-center rounded-full bg-black/70 hover:bg-black/90"
+                  >
+                    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor" aria-hidden>
+                      <path d="M4 4h7v2H6v5H4V4zm16 0v7h-2V6h-5V4h7zM4 20v-7h2v5h5v2H4zm16 0h-7v-2h5v-5h2v7z" />
+                    </svg>
+                  </button>
 
-                {/* tay nắm ở góc trái trên để đổi cỡ */}
+                  <button
+                    onClick={close}
+                    title="Đóng (Esc)"
+                    aria-label="Đóng"
+                    className="grid h-7 w-7 place-items-center rounded-full bg-black/70 hover:bg-yt-red"
+                  >
+                    <CloseIcon className="h-4 w-4" />
+                  </button>
+                </div>
+
+                {/* tay nắm ở góc trái dưới để đổi cỡ */}
                 <div
                   onPointerDown={startResize}
                   title="Kéo để đổi kích thước"
-                  className="absolute left-0 top-0 h-5 w-5 cursor-nwse-resize"
+                  className="absolute bottom-0 left-0 h-5 w-5 cursor-nesw-resize"
                 >
                   <svg viewBox="0 0 20 20" className="h-full w-full text-white/40" fill="currentColor" aria-hidden>
-                    <path d="M2 2h6v1.5H3.5V8H2V2z" />
+                    <path d="M2 18v-6h1.5v4.5H8V18H2z" />
                   </svg>
                 </div>
               </>

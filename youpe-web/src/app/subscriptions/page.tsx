@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import VideoCard, { CardSkeleton } from '@/components/VideoCard';
 import { getSubs, onSubsChange, unsubscribe, type SubChannel } from '@/lib/subs';
+import EmptyState from '@/components/EmptyState';
 import type { VideoItem } from '@/lib/types';
 
 /**
@@ -88,21 +89,17 @@ export default function SubscriptionsPage() {
       )}
 
       {!subs.length && !loading && (
-        <div className="grid place-items-center py-24 text-center">
-          <svg viewBox="0 0 24 24" className="mb-4 h-14 w-14 text-yt-sub" fill="currentColor" aria-hidden>
-            <path d="M10 18v-6l5 3-5 3zm7-15H7v1h10V3zm3 3H4v1h16V6zm2 3H2v12h20V9zM3 10h18v10H3V10z" />
-          </svg>
-          <p className="text-lg">Chưa đăng ký kênh nào</p>
-          <p className="mt-2 max-w-md text-sm text-yt-sub">
-            Bấm nút Đăng ký ở trang xem video hoặc trang kênh, video mới của họ sẽ gom về đây.
-          </p>
-          <Link
-            href="/"
-            className="mt-5 rounded-full bg-yt-chip px-4 py-2 text-sm font-medium hover:bg-[#3f3f3f]"
-          >
-            Khám phá video
-          </Link>
-        </div>
+        <EmptyState
+          icon={
+            <svg viewBox="0 0 24 24" className="h-8 w-8" fill="currentColor" aria-hidden>
+              <path d="M10 18v-6l5 3-5 3zm7-15H7v1h10V3zm3 3H4v1h16V6zm2 3H2v12h20V9zM3 10h18v10H3V10z" />
+            </svg>
+          }
+          title="Chưa đăng ký kênh nào"
+          hint="Bấm nút Đăng ký ở trang xem video hoặc trang kênh, video mới của họ sẽ gom về đây."
+          actionLabel="Khám phá video"
+          actionHref="/"
+        />
       )}
 
       <div className="grid grid-cols-1 gap-x-4 gap-y-8 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 min-[1900px]:grid-cols-5">

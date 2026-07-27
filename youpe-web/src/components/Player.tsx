@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { formatDuration } from '@/lib/format';
 import { getPrefs } from '@/lib/prefs';
+import { resumeAt, saveProgress } from '@/lib/progress';
 
 type Caption = { label: string; lang: string; url: string };
 type Track = { id: number; height: number; label: string; active: boolean };
@@ -64,6 +65,7 @@ export default function Player({
   onPickVideo,
   compact = false,
   onMinimize,
+  registerApi,
 }: {
   src: string;
   videoId: string;
@@ -78,6 +80,8 @@ export default function Player({
   compact?: boolean;
   /** Bấm nút thu nhỏ trên thanh điều khiển */
   onMinimize?: () => void;
+  /** Phơi vài thao tác ra ngoài, ví dụ để mô tả bấm vào mốc thời gian là tua tới */
+  registerApi?: (api: { seek: (t: number) => void } | null) => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -119,6 +123,8 @@ export default function Player({
   const [resolving, setResolving] = useState(false);
   const [waited, setWaited] = useState(0);
   const [isLive, setIsLive] = useState(false);
+  const [resumed, setResumed] = useState(0);
+  const resumeDone = useRef(false);
 
   useEffect(() => {
     playingRef.current = playing;
@@ -239,6 +245,8 @@ export default function Player({
     setResolving(false);
     setWaited(0);
     setIsLive(false);
+    setResumed(0);
+    resumeDone.current = false;
     setPlaying(false);
     setTime(0);
     setDuration(0);
@@ -475,6 +483,53 @@ export default function Player({
     };
   }, [onEnded]);
 
+  /* ---------------- tiến độ xem ---------------- */
+
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v || isLive) return;
+
+    /**
+     * Nhảy tới chỗ xem dở, chỉ làm một lần cho mỗi video.
+     * Chờ có metadata mới biết được tổng thời lượng.
+     */
+    const tryResume = () => {
+      if (resumeDone.current || !Number.isFinite(v.duration) || v.duration <= 0) return;
+      resumeDone.current = true;
+
+      const at = resumeAt(videoId);
+      if (at > 0 && at < v.duration - 20) {
+        v.currentTime = at;
+        const a = audioRef.current;
+        if (a?.src) a.currentTime = at;
+        setResumed(at);
+        setTimeout(() => setResumed(0), 6000);
+      }
+    };
+
+    v.addEventListener('loadedmetadata', tryResume);
+    tryResume();
+
+    // ghi mỗi 5 giây, đủ chính xác mà không làm phiền localStorage
+    const timer = setInterval(() => {
+      if (!v.paused && Number.isFinite(v.duration)) saveProgress(videoId, v.currentTime, v.duration);
+    }, 5000);
+
+    const onLeave = () => {
+      if (Number.isFinite(v.duration)) saveProgress(videoId, v.currentTime, v.duration);
+    };
+    v.addEventListener('pause', onLeave);
+    window.addEventListener('beforeunload', onLeave);
+
+    return () => {
+      clearInterval(timer);
+      v.removeEventListener('loadedmetadata', tryResume);
+      v.removeEventListener('pause', onLeave);
+      window.removeEventListener('beforeunload', onLeave);
+      onLeave();
+    };
+  }, [videoId, isLive]);
+
   /* ---------------- đồng bộ tiếng ở chế độ 2 luồng ---------------- */
 
   useEffect(() => {
@@ -642,6 +697,12 @@ export default function Player({
     if (hideTimer.current) clearTimeout(hideTimer.current);
   }, []);
 
+  // phơi API ra ngoài sau khi seek đã sẵn sàng
+  useEffect(() => {
+    registerApi?.({ seek: (t: number) => seek(t) });
+    return () => registerApi?.(null);
+  }, [registerApi, seek]);
+
   /* phím tắt giống YouTube */
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
@@ -776,6 +837,24 @@ export default function Player({
         <div className="anim-fade-in pointer-events-none absolute right-3 top-3 flex items-center gap-1.5 rounded-full bg-yt-red px-2.5 py-1 text-xs font-medium">
           <span className="h-1.5 w-1.5 rounded-full bg-white" />
           TRỰC TIẾP
+        </div>
+      )}
+
+      {resumed > 0 && !error && (
+        <div className="anim-fade-in absolute bottom-16 left-3 flex items-center gap-3 rounded-lg bg-black/85 px-3 py-2 text-xs">
+          <span>Đã tiếp tục từ {formatDuration(resumed)}</span>
+          <button
+            onClick={() => {
+              const v = videoRef.current;
+              const a = audioRef.current;
+              if (v) v.currentTime = 0;
+              if (a?.src) a.currentTime = 0;
+              setResumed(0);
+            }}
+            className="font-medium text-yt-blue hover:underline"
+          >
+            Xem từ đầu
+          </button>
         </div>
       )}
 

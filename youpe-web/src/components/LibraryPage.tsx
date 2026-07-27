@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Thumb } from '@/components/VideoCard';
 import { TrashIcon } from '@/components/Icons';
+import EmptyState from '@/components/EmptyState';
 import { timeAgoFromMs } from '@/lib/format';
 import * as store from '@/lib/storage';
 import { useAuth } from '@/components/AuthProvider';
@@ -39,7 +40,9 @@ export default function LibraryPage({
         )}
       </div>
 
-      {!items.length && <p className="py-16 text-center text-yt-sub">{emptyText}</p>}
+      {!items.length && (
+        <EmptyState title={emptyText} actionLabel="Khám phá video" actionHref="/" />
+      )}
 
       <ul className="space-y-4">
         {items.map((v) => (

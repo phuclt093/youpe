@@ -1,26 +1,43 @@
 'use client';
 
 import { use, useEffect, useState } from 'react';
+import Link from 'next/link';
 import VideoCard, { CardSkeleton } from '@/components/VideoCard';
-import { VerifiedIcon } from '@/components/Icons';
+import EmptyState from '@/components/EmptyState';
+import { PlaylistIcon, VerifiedIcon } from '@/components/Icons';
 import type { VideoItem } from '@/lib/types';
 import * as subs from '@/lib/subs';
 
 type ChannelData = {
   id: string; name: string; avatar: string; banner: string;
   subsText: string; description: string; handle: string;
-  verified: boolean; videos: VideoItem[]; error?: string; tabError?: string;
+  verified: boolean; videos: VideoItem[];
+  playlists: ChannelPlaylist[]; sorts: string[];
+  error?: string; tabError?: string;
+};
+
+type ChannelPlaylist = {
+  id: string; title: string; thumbnail: string; videoCount: string;
 };
 
 const TABS = [
   { key: 'videos', label: 'Video' },
   { key: 'shorts', label: 'Shorts' },
   { key: 'live', label: 'Trực tiếp' },
+  { key: 'playlists', label: 'Danh sách phát' },
+];
+
+/** Nhãn chip của YouTube là tiếng Anh cố định, đây là bản dịch để hiển thị */
+const SORTS = [
+  { key: 'newest', label: 'Mới nhất' },
+  { key: 'popular', label: 'Phổ biến' },
+  { key: 'oldest', label: 'Cũ nhất' },
 ];
 
 export default function ChannelPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const [tab, setTab] = useState('videos');
+  const [sort, setSort] = useState('newest');
   const [data, setData] = useState<ChannelData | null>(null);
   const [loading, setLoading] = useState(true);
   const [subbed, setSubbed] = useState(false);
@@ -30,12 +47,12 @@ export default function ChannelPage({ params }: { params: Promise<{ id: string }
   useEffect(() => {
     let alive = true;
     setLoading(true);
-    fetch(`/api/channel/${id}?tab=${tab}`)
+    fetch(`/api/channel/${id}?tab=${tab}&sort=${sort}`)
       .then((r) => r.json())
       .then((j) => alive && setData(j))
       .finally(() => alive && setLoading(false));
     return () => { alive = false; };
-  }, [id, tab]);
+  }, [id, tab, sort]);
 
   return (
     <div className="pb-16">
@@ -84,12 +101,12 @@ export default function ChannelPage({ params }: { params: Promise<{ id: string }
           </div>
         </div>
 
-        <div className="mb-6 flex gap-6 border-b border-yt-border text-sm font-medium">
+        <div className="mb-4 flex gap-6 overflow-x-auto border-b border-yt-border text-sm font-medium no-scrollbar">
           {TABS.map((t) => (
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
-              className={`-mb-px border-b-2 px-1 pb-3 ${
+              className={`-mb-px shrink-0 border-b-2 px-1 pb-3 ${
                 tab === t.key ? 'border-yt-text' : 'border-transparent text-yt-sub hover:text-yt-text'
               }`}
             >
@@ -98,20 +115,77 @@ export default function ChannelPage({ params }: { params: Promise<{ id: string }
           ))}
         </div>
 
-        <div className="grid grid-cols-1 gap-x-4 gap-y-8 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 min-[1900px]:grid-cols-5">
-          {loading
-            ? Array.from({ length: 8 }).map((_, i) => <CardSkeleton key={i} />)
-            : data?.videos?.map((v, i) => <VideoCard key={v.id} v={v} index={i} />)}
-        </div>
-
-        {!loading && !data?.videos?.length && (
-          <div className="py-16 text-center">
-            <p className="text-yt-sub">Không có video trong mục này.</p>
-            {data?.tabError && (
-              <p className="mx-auto mt-2 max-w-xl text-xs text-yt-sub/70">{data.tabError}</p>
-            )}
+        {tab === 'videos' && (
+          <div className="mb-6 flex gap-2">
+            {SORTS.map((sv) => (
+              <button
+                key={sv.key}
+                onClick={() => setSort(sv.key)}
+                className={`rounded-full px-3 py-1.5 text-sm ${
+                  sort === sv.key
+                    ? 'bg-yt-text font-medium text-yt-bg'
+                    : 'bg-yt-chip hover:bg-[#3f3f3f]'
+                }`}
+              >
+                {sv.label}
+              </button>
+            ))}
           </div>
         )}
+
+        {tab === 'playlists' ? (
+          <div className="grid grid-cols-1 gap-x-4 gap-y-8 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 min-[1900px]:grid-cols-5">
+            {loading
+              ? Array.from({ length: 8 }).map((_, i) => <CardSkeleton key={i} />)
+              : (data?.playlists ?? []).map((p, i) => (
+                  <Link
+                    key={p.id}
+                    href={`/watch?v=&list=${p.id}`}
+                    style={{ animationDelay: `${Math.min(i, 11) * 35}ms` }}
+                    className="anim-fade-up group flex flex-col"
+                    onClick={(e) => {
+                      // chưa có trang xem playlist của YouTube, mở thẳng trên youtube.com
+                      e.preventDefault();
+                      window.open(`https://www.youtube.com/playlist?list=${p.id}`, '_blank');
+                    }}
+                  >
+                    <div className="card-thumb relative aspect-video w-full overflow-hidden rounded-xl bg-yt-elev">
+                      {p.thumbnail ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={p.thumbnail} alt="" loading="lazy" className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="grid h-full w-full place-items-center text-yt-sub">
+                          <PlaylistIcon className="h-8 w-8" />
+                        </div>
+                      )}
+                      <div className="absolute bottom-0 right-0 flex h-full w-[45%] flex-col items-center justify-center bg-black/70 text-xs">
+                        <PlaylistIcon className="mb-1 h-5 w-5" />
+                        {p.videoCount || 'Danh sách'}
+                      </div>
+                    </div>
+                    <p className="card-title mt-3 line-clamp-2 text-[15px] font-medium leading-[22px]">
+                      {p.title}
+                    </p>
+                  </Link>
+                ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-x-4 gap-y-8 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 min-[1900px]:grid-cols-5">
+            {loading
+              ? Array.from({ length: 8 }).map((_, i) => <CardSkeleton key={i} />)
+              : data?.videos?.map((v, i) => <VideoCard key={v.id} v={v} index={i} />)}
+          </div>
+        )}
+
+        {!loading &&
+          !data?.videos?.length &&
+          !data?.playlists?.length && (
+            <EmptyState
+              title="Không có gì trong mục này"
+              hint={data?.tabError || 'Kênh này chưa đăng nội dung ở mục bạn chọn.'}
+            />
+          )}
+
       </div>
     </div>
   );

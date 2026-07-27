@@ -223,7 +223,19 @@ video có hậu tố `(worker)` hoặc `(exe)`.
 
 Worker hỏng thì tự quay về gọi exe, không làm chết luồng.
 
-### 4.13 Trình phát sống ngoài cây trang (`PlayerHost.tsx`)
+### 4.13 Trò chuyện trực tiếp đi qua SSE
+
+`info.getLiveChat()` trả về một EventEmitter tự hỏi YouTube theo chu kỳ — đối tượng
+sống lâu ở server, không gói vào một lời gọi HTTP bình thường được.
+
+Nên `/api/livechat/[id]` dùng Server-Sent Events: giữ kết nối mở, có tin nào đẩy ngay.
+Trình duyệt đóng tab thì `req.signal` bắn abort và ta gọi `chat.stop()` — **bỏ bước này
+là tiến trình hỏi vòng chạy mãi**, rò rỉ dần theo mỗi lần mở video.
+
+Chat chỉ đọc. Gửi tin cần tài khoản Google đã đăng nhập, mà app dùng tài khoản nội bộ
+riêng nên không làm được.
+
+### 4.14 Trình phát sống ngoài cây trang (`PlayerHost.tsx`)
 
 Muốn xem tiếp trong cửa sổ nhỏ khi rời trang xem thì thẻ `<video>` **không được
 unmount**. Để trình phát nằm trong cây của trang xem là chuyển trang React gỡ nó đi,
@@ -237,7 +249,7 @@ thao tác chuyển chỗ chứ không phải xoá rồi tạo lại, nên video 
 `PlayerSlot` trên trang xem chỉ là khung rỗng đúng tỉ lệ; trình phát thật được chuyển
 vào đấy. Slot biến mất là tự chuyển sang chế độ nhỏ.
 
-### 4.14 Phát khi cửa sổ bị ẩn
+### 4.15 Phát khi cửa sổ bị ẩn
 
 Chromium mặc định hãm mọi thứ khi cửa sổ ẩn hoặc bị che — timer chậm lại và media bị
 dừng. Với app xem video là hành vi sai. Đã tắt ở hai chỗ:
@@ -247,7 +259,7 @@ dừng. Với app xem video là hành vi sai. Đã tắt ở hai chỗ:
 
 Cả hai đều theo tuỳ chọn `playInBackground` trong trang Cài đặt.
 
-### 4.15 Cache và gộp request
+### 4.16 Cache và gộp request
 
 - `resolveStreams` gộp các lời gọi trùng cho cùng videoId — nếu không, trang xem và
   trình phát sẽ chạy yt-dlp **hai lần**.

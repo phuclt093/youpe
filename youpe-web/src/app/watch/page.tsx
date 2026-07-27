@@ -11,6 +11,9 @@ import { formatCount, viPublished } from '@/lib/format';
 import * as store from '@/lib/storage';
 import { prefetchNow } from '@/lib/prefetch';
 import * as subs from '@/lib/subs';
+import SaveToPlaylist from '@/components/SaveToPlaylist';
+import LiveChat from '@/components/LiveChat';
+import Description from '@/components/Description';
 import type { VideoDetail, VideoItem } from '@/lib/types';
 
 export default function WatchPage() {
@@ -24,6 +27,7 @@ export default function WatchPage() {
   const [liked, setLiked] = useState(false);
   const [saved, setSaved] = useState(false);
   const [subbed, setSubbed] = useState(false);
+  const [saveOpen, setSaveOpen] = useState(false);
   const [related, setRelated] = useState<VideoItem[]>([]);
   const [mix, setMix] = useState<{ source: string; count: number }[]>([]);
   const [loadingRelated, setLoadingRelated] = useState(true);
@@ -220,7 +224,7 @@ export default function WatchPage() {
                 </button>
 
                 <button
-                  onClick={() => data && setSaved(store.toggle('later', asItem(data)))}
+                  onClick={() => setSaveOpen(true)}
                   className={`flex shrink-0 items-center gap-2 rounded-full bg-yt-chip px-4 py-2 text-sm hover:bg-[#3f3f3f] ${saved ? 'text-yt-blue' : ''}`}
                 >
                   <ClockIcon className="h-5 w-5" /> {saved ? 'Đã lưu' : 'Lưu'}
@@ -232,19 +236,20 @@ export default function WatchPage() {
               </div>
             </div>
 
-            {/* mô tả */}
-            <div
-              onClick={() => setExpanded((e) => !e)}
-              className="mt-4 cursor-pointer rounded-xl bg-yt-elev p-3 text-sm hover:bg-yt-hover"
-            >
-              <p className="font-medium">
-                {data?.viewsText} {data?.publishedText && `· ${viPublished(data.publishedText)}`}
-              </p>
-              <p className={`mt-2 whitespace-pre-wrap break-words leading-5 ${expanded ? '' : 'line-clamp-3'}`}>
-                {data?.description}
-              </p>
-              <p className="mt-2 font-medium">{expanded ? 'Ẩn bớt' : '...thêm'}</p>
-            </div>
+            {data && (
+              <Description
+                text={data.description}
+                viewsText={data.viewsText}
+                publishedText={data.publishedText}
+              />
+            )}
+
+            {/* chat trực tiếp trên màn hình hẹp */}
+            {data?.isLive && (
+              <div className="mt-4 h-[420px] xl:hidden">
+                <LiveChat videoId={data.id} />
+              </div>
+            )}
 
             {/* video liên quan trên mobile */}
             <div className="mt-6 space-y-3 xl:hidden">
@@ -260,6 +265,12 @@ export default function WatchPage() {
         {/* cột phải */}
         {!theater && (
           <aside className="hidden w-[402px] shrink-0 space-y-2 xl:block">
+            {data?.isLive && (
+              <div className="mb-4 h-[460px]">
+                <LiveChat videoId={data.id} />
+              </div>
+            )}
+
             <div className="mb-2 flex flex-wrap items-baseline gap-x-2 gap-y-1">
               <p className="text-sm font-medium">Video đề xuất</p>
               {mix.length > 0 && (
@@ -291,6 +302,16 @@ export default function WatchPage() {
           </aside>
         )}
       </div>
+
+      {saveOpen && data && (
+        <SaveToPlaylist
+          video={asItem(data)}
+          onClose={() => {
+            setSaveOpen(false);
+            setSaved(store.has('later', data.id));
+          }}
+        />
+      )}
     </div>
   );
 }
