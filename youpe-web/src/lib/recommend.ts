@@ -1,4 +1,4 @@
-import { collectVideos } from './innertube';
+import { collectVideos, videosFrom } from './innertube';
 import type { VideoItem } from './types';
 
 /**
@@ -85,7 +85,7 @@ async function searchBucket(
 ): Promise<Bucket> {
   const items = await cached(`s:${query}`, 10 * 60_000, async () => {
     const res = await yt.search(query, { type: 'video' });
-    return collectVideos(res, 20);
+    return videosFrom(res, 20);
   });
   return { source, weight, items };
 }

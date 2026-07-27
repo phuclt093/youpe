@@ -3,13 +3,14 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import Player from '@/components/Player';
+import { PlayerSlot, usePlayer } from '@/components/PlayerHost';
 import Comments from '@/components/Comments';
 import VideoCard from '@/components/VideoCard';
 import { LikeIcon, DislikeIcon, ShareIcon, ClockIcon, VerifiedIcon, MoreIcon, BellIcon } from '@/components/Icons';
 import { formatCount, viPublished } from '@/lib/format';
 import * as store from '@/lib/storage';
 import { prefetchNow } from '@/lib/prefetch';
+import * as subs from '@/lib/subs';
 import type { VideoDetail, VideoItem } from '@/lib/types';
 
 export default function WatchPage() {
@@ -18,6 +19,7 @@ export default function WatchPage() {
   const [data, setData] = useState<VideoDetail | null>(null);
   const [err, setErr] = useState('');
   const [theater, setTheater] = useState(false);
+  const { play, mode: playerMode } = usePlayer();
   const [expanded, setExpanded] = useState(false);
   const [liked, setLiked] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -35,6 +37,26 @@ export default function WatchPage() {
       .then((j) => (j.error ? setErr(j.error) : setData(j)))
       .catch((e) => setErr(String(e)));
   }, [id]);
+
+  // đưa video cho trình phát dùng chung — nó sống ngoài cây trang nên
+  // chuyển trang không làm video nạp lại
+  useEffect(() => {
+    if (!data) return;
+    play({
+      videoId: data.id,
+      title: data.title,
+      channelName: data.channel.name,
+      poster: `https://i.ytimg.com/vi/${data.id}/maxresdefault.jpg`,
+      captions: data.captions,
+      related: (related.length ? related : data.related).map((v) => ({
+        id: v.id,
+        title: v.title,
+        thumbnail: v.thumbnail,
+        durationText: v.durationText,
+        author: { name: v.author.name },
+      })),
+    });
+  }, [data, related, play]);
 
   // gợi ý: trộn nhiều nguồn, có pha thêm hành vi xem gần đây
   useEffect(() => {
@@ -86,6 +108,7 @@ export default function WatchPage() {
     store.add('history', item);
     setLiked(store.has('liked', data.id));
     setSaved(store.has('later', data.id));
+    setSubbed(subs.isSubscribed(data.channel.id));
   }, [data]);
 
   // Đang xem thì âm thầm lấy sẵn luồng của video kế tiếp — bấm sang là phát ngay.
@@ -121,22 +144,7 @@ export default function WatchPage() {
               <p className="text-sm text-yt-sub">Không phát được video: {err}</p>
             </div>
           ) : data ? (
-            <Player
-              src={data.manifest}
-              videoId={id}
-              poster={`https://i.ytimg.com/vi/${id}/maxresdefault.jpg`}
-              captions={data.captions}
-              theater={theater}
-              onToggleTheater={() => setTheater((t) => !t)}
-              related={(related.length ? related : data.related).map((v) => ({
-                id: v.id,
-                title: v.title,
-                thumbnail: v.thumbnail,
-                durationText: v.durationText,
-                author: { name: v.author.name },
-              }))}
-              onPickVideo={(next) => router.push(`/watch?v=${next}`)}
-            />
+            <PlayerSlot />
           ) : (
             <div className="skeleton aspect-video w-full rounded-xl" />
           )}
@@ -167,7 +175,17 @@ export default function WatchPage() {
                   <p className="text-xs text-yt-sub">{data?.channel.subsText}</p>
                 </div>
                 <button
-                  onClick={() => setSubbed((s) => !s)}
+                  onClick={() => {
+                    if (!data) return;
+                    setSubbed(
+                      subs.toggleSub({
+                        id: data.channel.id,
+                        name: data.channel.name,
+                        avatar: data.channel.avatar,
+                        subsText: data.channel.subsText,
+                      })
+                    );
+                  }}
                   className={`ml-3 flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium ${
                     subbed ? 'bg-yt-chip hover:bg-[#3f3f3f]' : 'bg-yt-text text-yt-bg hover:bg-white/90'
                   }`}

@@ -40,8 +40,10 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
 
     // DASH chỉ dựng được khi format có sẵn init/index range.
     // yt-dlp không trả các range này, nên khi nguồn là yt-dlp thì đi thẳng chế độ 2 luồng.
+    // Live luôn đi HLS; có HLS rồi thì không dựng DASH nữa
     const dashReady =
       !result.isLive &&
+      !result.hls &&
       result.formats.some(
         (f) => f.kind !== 'muxed' && f.initStart != null && f.indexStart != null
       );
@@ -55,7 +57,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       width: f.width ?? null,
       height: f.height ?? null,
       fps: f.fps ?? null,
-      label: f.height ? `${f.height}p${f.fps && f.fps > 30 ? Math.round(f.fps) : ''}` : '',
+      label: f.height ? `${f.height}p${f.fps && f.fps > 31 ? Math.round(f.fps) : ''}` : '',
     });
 
     // ưu tiên mp4/h264 cho video (tương thích rộng nhất), m4a cho audio
@@ -68,11 +70,30 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     const isH264 = (c: string) => /^avc/i.test(c);
     const isAac = (c: string) => /^mp4a/i.test(c);
 
-    const video = result.formats
-      .filter((f) => f.kind === 'video' && f.height)
-      .filter((f) => !wantH264 || isH264(f.codecs))
-      .filter((f) => !maxHeight || (f.height ?? 0) <= maxHeight)
-      .sort((a, b) => (b.height ?? 0) - (a.height ?? 0) || prefer(a, b))
+    /**
+     * Mỗi độ phân giải chỉ giữ một bản.
+     *
+     * yt-dlp trả về cùng một mức nhiều lần vì YouTube mã hoá bằng nhiều codec khác
+     * nhau (H.264, VP9, AV1) — nên menu chất lượng hiện "480p" ba lần. Người xem
+     * không quan tâm codec, chỉ cần một dòng cho mỗi mức.
+     *
+     * Trong các bản cùng độ phân giải thì ưu tiên H.264/mp4: tương thích rộng nhất
+     * và giải mã bằng phần cứng trên gần như mọi máy.
+     */
+    const byHeight = new Map<number, (typeof result.formats)[number]>();
+    for (const f of result.formats) {
+      if (f.kind !== 'video' || !f.height) continue;
+      if (wantH264 && !isH264(f.codecs)) continue;
+      if (maxHeight && f.height > maxHeight) continue;
+
+      const cur = byHeight.get(f.height);
+      if (!cur || prefer(f, cur) < 0 || (prefer(f, cur) === 0 && f.bitrate > cur.bitrate)) {
+        byHeight.set(f.height, f);
+      }
+    }
+
+    const video = [...byHeight.values()]
+      .sort((a, b) => (b.height ?? 0) - (a.height ?? 0))
       .map(shape);
 
     // Chọn audio bitrate vừa phải chứ không phải cao nhất: 320kbps chỉ làm
@@ -104,6 +125,8 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       duration: result.durationSec,
       isLive: result.isLive,
       hls: result.hls ? proxy(result.hls) : null,
+      // báo rõ khi live mà không lấy được HLS, để phía trình phát nói cho người dùng biết
+      liveWithoutHls: result.isLive && !result.hls,
       video,
       audio,
       muxed,

@@ -11,7 +11,8 @@ import type { UserRow, SessionRow, LibraryRow } from './db-json';
  * build image Docker.
  */
 
-const dir = path.resolve(process.cwd(), 'data');
+// App desktop trỏ ra thư mục dữ liệu của người dùng để nâng cấp không mất
+const dir = process.env.YOUPE_DATA_DIR || path.resolve(process.cwd(), 'data');
 const file = path.join(dir, 'youpe.sqlite');
 const legacyJson = path.join(dir, 'youpe.json');
 

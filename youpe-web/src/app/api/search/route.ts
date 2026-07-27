@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getYT, collectVideos, mapChannel, txt, bestThumb } from '@/lib/innertube';
+import { getYT, videosFrom, mapChannel, txt, bestThumb } from '@/lib/innertube';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
     if (filter === 'playlist') opts.type = 'playlist';
 
     const res: any = await yt.search(q, opts);
-    const videos = collectVideos(res, 40);
+    const videos = videosFrom(res, 40);
 
     const channels: any[] = [];
     const walk = (n: any, d = 0) => {

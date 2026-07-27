@@ -1,0 +1,70 @@
+youpe - huong dan
+=================
+
+CAI DAT LAN DAU
+---------------
+1. Cai Node.js neu chua co: https://nodejs.org  (chon ban LTS)
+2. Bam dup vao  create-shortcut.bat
+   -> Tao shortcut ngoai Desktop va trong Start Menu
+
+
+CAC SHORTCUT
+------------
+Ngoai Desktop:
+
+  youpe                       Chay va xem tren may nay
+                              Lan dau mat vai phut, sau do khoang 5 giay
+
+  youpe (cho TV box)          Chay o che do mang - TV box, dien thoai
+                              cung wifi deu vao duoc
+
+Trong Start Menu (thu muc youpe):
+
+  youpe - Build app desktop   Dong goi thanh file cai dat Windows
+                              Mat 5-15 phut, chi can chay khi muon tao
+                              file cai dat de mang sang may khac
+
+  youpe - Build ban web       Build lai sau khi sua code
+
+
+DUNG HANG NGAY
+--------------
+Chi can bam dup shortcut "youpe".
+Tat: dong cua so mau den o thanh tac vu.
+
+
+TAO FILE CAI DAT WINDOWS
+------------------------
+Bam dup  BUILD-DESKTOP.bat  (hoac shortcut trong Start Menu).
+
+Xong thi file cai dat nam o:
+    youpe-desktop\release\
+
+Mang file do sang may khac cai binh thuong. May do KHONG can cai Node.js.
+
+Neu buoc tai Electron bi cham hoac loi, mo PowerShell trong thu muc
+youpe-desktop roi go:
+
+    $env:ELECTRON_MIRROR="https://npmmirror.com/mirrors/electron/"
+    npm install
+
+
+KHONG XEM DUOC VIDEO
+--------------------
+Mo dia chi nay, thay <id> bang ma video:
+
+    http://localhost:3000/api/debug/<id>
+
+Vi du video  youtube.com/watch?v=abc123  thi go:
+
+    http://localhost:3000/api/debug/abc123
+
+Trang do noi ro nguon nao con dung duoc va hong o dau.
+
+
+TV BOX KHONG KET NOI DUOC
+-------------------------
+1. Dung shortcut "youpe (cho TV box)", khong phai shortcut thuong
+2. Mo cong 3000 tren tuong lua - PowerShell quyen admin:
+   New-NetFirewallRule -DisplayName "youpe" -Direction Inbound -LocalPort 3000 -Protocol TCP -Action Allow
+3. Kiem tra TV box va may tinh cung mot mang wifi

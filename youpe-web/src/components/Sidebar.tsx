@@ -7,6 +7,12 @@ import {
 } from './Icons';
 import { EXPLORE_TOPICS } from '@/lib/topics';
 
+const GearIcon = ({ className = 'w-6 h-6' }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" className={className} fill="currentColor" aria-hidden>
+    <path d="M9.7 3l-.4 2.6c-.6.2-1.1.5-1.6.9l-2.4-1-2.3 4 2 1.6c0 .3-.1.6-.1.9s0 .6.1.9l-2 1.6 2.3 4 2.4-1c.5.4 1 .7 1.6.9l.4 2.6h4.6l.4-2.6c.6-.2 1.1-.5 1.6-.9l2.4 1 2.3-4-2-1.6c0-.3.1-.6.1-.9s0-.6-.1-.9l2-1.6-2.3-4-2.4 1c-.5-.4-1-.7-1.6-.9L14.3 3H9.7zm2.3 5.5a3.5 3.5 0 110 7 3.5 3.5 0 010-7z" />
+  </svg>
+);
+
 type Item = { href: string; label: string; icon: (p: any) => React.JSX.Element };
 
 const MAIN: Item[] = [
@@ -27,6 +33,7 @@ const TOPIC_ICON: Record<string, (p: any) => React.JSX.Element> = {
 };
 
 const YOU: Item[] = [
+  { href: '/subscriptions', label: 'Kênh đăng ký', icon: SubsIcon },
   { href: '/history', label: 'Video đã xem', icon: HistoryIcon },
   { href: '/later', label: 'Xem sau', icon: ClockIcon },
   { href: '/liked', label: 'Video đã thích', icon: LikeIcon },
@@ -70,6 +77,11 @@ export default function Sidebar({ open, mini }: { open: boolean; mini: boolean }
         <hr className="my-3 border-yt-border" />
         <p className="px-3 py-1 text-base font-medium">Bạn</p>
         <Section items={YOU} path={path} />
+        <hr className="my-3 border-yt-border" />
+        <Section
+          items={[{ href: '/settings', label: 'Cài đặt', icon: GearIcon }]}
+          path={path}
+        />
         <hr className="my-3 border-yt-border" />
         <p className="px-3 py-1 text-base font-medium">Khám phá</p>
         <Section

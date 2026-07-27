@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getYT, collectVideos, txt, bestThumb } from '@/lib/innertube';
+import { getYT, videosFrom, txt, bestThumb } from '@/lib/innertube';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -13,11 +13,14 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     const h = ch.header ?? {};
 
     let feed: any = ch;
+    let tabError = '';
     try {
       if (tab === 'videos') feed = await ch.getVideos();
       else if (tab === 'shorts') feed = await ch.getShorts();
       else if (tab === 'live') feed = await ch.getLiveStreams();
-    } catch {
+    } catch (e: any) {
+      // kênh không có tab đó thì youtubei.js ném lỗi — quay về trang chính của kênh
+      tabError = e?.message ?? String(e);
       feed = ch;
     }
 
@@ -31,7 +34,8 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       description: txt(ch.metadata?.description) || '',
       handle: txt(h.channel_handle) || '',
       verified: !!h.author?.is_verified,
-      videos: collectVideos(feed, 48),
+      videos: videosFrom(feed, 48),
+      tabError: tabError || undefined,
     });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message ?? 'channel error' }, { status: 500 });

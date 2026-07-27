@@ -95,3 +95,11 @@ img { background-color: #212121; }
 
 /* Chip đang chọn: nổi hơn chút */
 .chip-active { box-shadow: 0 0 0 1px rgba(255, 255, 255, .15); }
+
+/* Tắt hiệu ứng theo tuỳ chọn trong trang Cài đặt */
+.no-anim *,
+.no-anim *::before,
+.no-anim *::after {
+  animation: none !important;
+  transition: none !important;
+}

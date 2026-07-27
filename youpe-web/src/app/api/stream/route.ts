@@ -60,6 +60,56 @@ export async function GET(req: NextRequest) {
     return new NextResponse(`upstream lỗi: ${e?.message ?? e}`, { status: 502 });
   }
 
+  /**
+   * Playlist HLS phải viết lại trước khi trả về.
+   *
+   * File .m3u8 chứa đường dẫn tới các playlist con và segment. Nếu để nguyên,
+   * trình duyệt sẽ gọi thẳng googlevideo và bị CORS chặn. Nên bắt mọi phản hồi
+   * kiểu m3u8 rồi thay từng đường dẫn thành lời gọi ngược lại chính proxy này —
+   * làm vậy thì playlist con, segment, khoá mã hoá đều tự động đi đúng đường.
+   */
+  const ctype = upstream.headers.get('content-type') ?? '';
+  const looksLikePlaylist =
+    /mpegurl|x-mpegurl/i.test(ctype) || /\.m3u8(\?|$)/i.test(target.pathname + target.search);
+
+  if (upstream.ok && looksLikePlaylist) {
+    const text = await upstream.text();
+    const base = target.toString();
+    const self = `${req.nextUrl.origin}/api/stream?u=`;
+
+    const rewritten = text
+      .split('\n')
+      .map((line) => {
+        const t = line.trim();
+        if (!t) return line;
+
+        // dòng chỉ thị: chỉ có thuộc tính URI="..." là cần thay
+        if (t.startsWith('#')) {
+          return line.replace(
+            /URI="([^"]+)"/g,
+            (_m, u) => `URI="${self}${encodeURIComponent(new URL(u, base).toString())}"`
+          );
+        }
+
+        // dòng còn lại là đường dẫn, có thể tương đối
+        try {
+          return self + encodeURIComponent(new URL(t, base).toString());
+        } catch {
+          return line;
+        }
+      })
+      .join('\n');
+
+    return new NextResponse(rewritten, {
+      status: upstream.status,
+      headers: {
+        'Content-Type': 'application/vnd.apple.mpegurl',
+        'Cache-Control': 'no-store',
+        'Access-Control-Allow-Origin': '*',
+      },
+    });
+  }
+
   const out = new Headers();
   for (const k of [
     'content-type',

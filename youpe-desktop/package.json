@@ -1,0 +1,70 @@
+{
+  "name": "youpe-desktop",
+  "version": "0.1.0",
+  "description": "youpe — xem video không quảng cáo",
+  "main": "main.js",
+  "author": "youpe",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "prepare:web": "node scripts/prepare-web.mjs",
+    "dev": "node scripts/dev.mjs",
+    "start": "npm run prepare:web && electron .",
+    "dist": "npm run prepare:web && electron-builder",
+    "dist:win": "npm run prepare:web && electron-builder --win",
+    "dist:mac": "npm run prepare:web && electron-builder --mac",
+    "dist:linux": "npm run prepare:web && electron-builder --linux",
+    "dev:shell-only": "cross-env YOUPE_DEV_URL=http://localhost:3000 electron ."
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.3",
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "vn.youpe.desktop",
+    "productName": "youpe",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "resources/server",
+        "to": "server"
+      },
+      {
+        "from": "resources/bin",
+        "to": "bin"
+      }
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "category": "public.app-category.entertainment"
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "AudioVideo"
+    }
+  }
+}

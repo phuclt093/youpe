@@ -30,7 +30,8 @@ type Shape = {
 
 const EMPTY: Shape = { nextUserId: 1, users: [], sessions: {}, library: {} };
 
-const dir = path.resolve(process.cwd(), 'data');
+// App desktop trỏ ra thư mục dữ liệu của người dùng để nâng cấp không mất
+const dir = process.env.YOUPE_DATA_DIR || path.resolve(process.cwd(), 'data');
 const file = path.join(dir, 'youpe.json');
 
 function load(): Shape {

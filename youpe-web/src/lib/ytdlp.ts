@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { promisify } from 'node:util';
+import { extractViaWorker, workerAvailable } from './ytdlp-worker';
 import type { PipedFormat, PipedResult } from './piped';
 
 const run = promisify(execFile);
@@ -31,7 +32,17 @@ function mimeOf(ext: string, kind: 'video' | 'audio' | 'muxed'): string {
   return `${kind === 'audio' ? 'audio' : 'video'}/${container}`;
 }
 
-function ytdlpArgs(id: string, allClients = false): string[] {
+/**
+ * Chiến lược trích xuất.
+ *
+ * `fast` bỏ qua bớt bước để nhanh hơn, `all` quét mọi player client nên chậm nhưng
+ * chắc ăn. Nhớ lại cái nào vừa thắng để lần sau dùng thẳng — nếu không, mỗi video
+ * phải chạy yt-dlp hai lượt và mất gấp đôi thời gian.
+ */
+type Strategy = 'fast' | 'all';
+let preferred: Strategy = 'fast';
+
+function ytdlpArgs(id: string, strategy: Strategy): string[] {
   const args = [
     '-J',
     '--no-warnings',
@@ -47,13 +58,8 @@ function ytdlpArgs(id: string, allClients = false): string[] {
     '--extractor-retries', '1',
   ];
 
-  // Không tải trang xem và file config của player: bớt được 2 request tới YouTube
-  // cho mỗi video, mà vẫn đủ dữ liệu để lấy format.
-  if (!allClients) args.push('--extractor-args', 'youtube:player_skip=webpage,configs');
-
-  // Lượt thử lại: ép yt-dlp quét hết mọi player client thay vì bộ mặc định.
-  // Chậm hơn nên chỉ dùng khi lượt đầu báo video không khả dụng.
-  if (allClients) args.push('--extractor-args', 'youtube:player_client=all');
+  // Lượt chắc ăn: quét mọi player client. Chậm hơn nên chỉ dùng khi cần.
+  if (strategy === 'all') args.push('--extractor-args', 'youtube:player_client=all');
 
   const cookies = process.env.YTDLP_COOKIES_FROM_BROWSER?.trim();
   if (cookies) args.push('--cookies-from-browser', cookies);
@@ -237,15 +243,21 @@ export async function getFromYtdlp(id: string): Promise<PipedResult> {
     );
   }
 
-  const exec = async (allClients: boolean) => {
+  const exec = async (strategy: Strategy) => {
     const t0 = Date.now();
-    const res = await run(ytdlpBin(), ytdlpArgs(id, allClients), {
-      timeout: Number(process.env.YTDLP_TIMEOUT_MS ?? 45_000),
-      maxBuffer: 64 * 1024 * 1024,
-      windowsHide: true,
-    });
-    console.info(`[yt-dlp ${id}] ${Date.now() - t0}ms${allClients ? ' (quét mọi client)' : ''}`);
-    return res.stdout;
+    try {
+      const res = await run(ytdlpBin(), ytdlpArgs(id, strategy), {
+        timeout: Number(process.env.YTDLP_TIMEOUT_MS ?? 45_000),
+        maxBuffer: 64 * 1024 * 1024,
+        windowsHide: true,
+      });
+      console.info(`[yt-dlp ${id}] ${Date.now() - t0}ms (exe/${strategy})`);
+      preferred = strategy; // cái nào chạy được thì lần sau dùng thẳng
+      return res.stdout;
+    } catch (e) {
+      console.info(`[yt-dlp ${id}] ${Date.now() - t0}ms (exe/${strategy}) HỎNG`);
+      throw e;
+    }
   };
 
   const readErr = (e: any) =>
@@ -253,24 +265,80 @@ export async function getFromYtdlp(id: string): Promise<PipedResult> {
     e?.message ||
     'yt-dlp lỗi không rõ';
 
-  let stdout: string;
-  try {
-    stdout = await exec(false);
-  } catch (first: any) {
-    const msg = readErr(first);
+  /**
+   * Đường nhanh: tiến trình Python thường trú.
+   *
+   * Bỏ được 1–4 giây khởi động PyInstaller mỗi lần gọi. Chỉ dùng khi máy có Python
+   * kèm gói yt_dlp; không có thì im lặng rơi xuống cách gọi file exe bên dưới.
+   */
+  let j: any = null;
 
-    if (!RETRYABLE.test(msg)) throw new Error(explainYtdlpError(msg));
-
-    // lượt 2: quét hết player client
+  if (await workerAvailable()) {
+    const t0 = Date.now();
     try {
-      stdout = await exec(true);
-    } catch (second: any) {
-      throw new Error(explainYtdlpError(readErr(second)));
+      j = await extractViaWorker(id, preferred === 'all');
+      console.info(`[yt-dlp ${id}] ${Date.now() - t0}ms (worker/${preferred})`);
+    } catch (e: any) {
+      const msg = e?.message ?? String(e);
+
+      if (RETRYABLE.test(msg) && preferred !== 'all') {
+        try {
+          j = await extractViaWorker(id, true);
+          preferred = 'all';
+          console.info(`[yt-dlp ${id}] ${Date.now() - t0}ms (worker/all)`);
+        } catch (second: any) {
+          throw new Error(explainYtdlpError(second?.message ?? String(second)));
+        }
+      } else if (!/worker/i.test(msg)) {
+        // lỗi thật của video, không phải worker hỏng
+        throw new Error(explainYtdlpError(msg));
+      }
+      // worker trục trặc thì để rơi xuống cách gọi file exe
     }
   }
 
-  const j = JSON.parse(stdout);
+  if (!j) {
+    // bắt đầu bằng chiến lược đã thắng lần trước, chỉ thử cái còn lại khi cần
+    const order: Strategy[] = preferred === 'all' ? ['all'] : ['fast', 'all'];
+
+    let stdout: string | null = null;
+    let lastErr = '';
+
+    for (const strategy of order) {
+      try {
+        stdout = await exec(strategy);
+        break;
+      } catch (e: any) {
+        lastErr = readErr(e);
+        // lỗi thật của video thì dừng luôn, thử tiếp chỉ tốn thời gian
+        if (!RETRYABLE.test(lastErr)) throw new Error(explainYtdlpError(lastErr));
+      }
+    }
+
+    if (!stdout) throw new Error(explainYtdlpError(lastErr));
+    j = JSON.parse(stdout);
+  }
   const formats: PipedFormat[] = [];
+
+  /**
+   * Video trực tiếp không có file hoàn chỉnh để tải theo Range — YouTube phát bằng
+   * HLS. yt-dlp để đường dẫn master playlist ở `manifest_url` của các format m3u8.
+   * Lấy được cái đó là đủ, không cần danh sách format rời.
+   */
+  let hls: string | undefined;
+  if (j.is_live || j.live_status === 'is_live') {
+    const variants = (j.formats ?? []).filter(
+      (f: any) => /m3u8/i.test(f.protocol ?? '') || /\.m3u8/i.test(f.url ?? '')
+    );
+
+    // Ưu tiên manifest_url (master playlist, có đủ mọi chất lượng) hơn url của một
+    // biến thể đơn lẻ — chọn nhầm biến thể thì mất khả năng đổi chất lượng.
+    hls =
+      variants.find((f: any) => f.manifest_url)?.manifest_url ??
+      j.manifest_url ??
+      variants.find((f: any) => /\.m3u8/i.test(f.url ?? ''))?.url ??
+      undefined;
+  }
 
   for (const f of j.formats ?? []) {
     if (!f?.url) continue;
@@ -302,12 +370,16 @@ export async function getFromYtdlp(id: string): Promise<PipedResult> {
     });
   }
 
+  const isLive = !!(j.is_live || j.live_status === 'is_live');
+
   return {
     source: 'yt-dlp',
     title: j.title ?? '',
     durationSec: num(j.duration) ?? 0,
-    isLive: !!j.is_live,
-    hls: undefined,
-    formats,
+    isLive,
+    hls,
+    // Live mà đã có HLS thì bỏ các format rời đi: chúng là đoạn cố định, phát
+    // được vài phút rồi đứng, mà lại được ưu tiên hơn HLS ở phía trình phát.
+    formats: isLive && hls ? [] : formats,
   };
 }

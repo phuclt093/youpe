@@ -1,6 +1,9 @@
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
 import type { PipedResult } from './piped';
 import { getFromFallback } from './piped';
 import { getFromYtdlp } from './ytdlp';
+import { warmWorker } from './ytdlp-worker';
 import { getPlayableInfo } from './player';
 
 /** Đổi VideoInfo của youtubei.js sang cùng shape với các nguồn khác */
@@ -61,6 +64,32 @@ async function fromInnertube(id: string): Promise<PipedResult> {
   };
 }
 
+/**
+ * Lấy master playlist HLS cho video trực tiếp.
+ *
+ * yt-dlp không phải lúc nào cũng để `manifest_url` trong JSON, tuỳ phiên bản và
+ * tuỳ luồng. Nhưng InnerTube thì luôn trả `hls_manifest_url` cho live — và điều
+ * quan trọng là trường này **không bị SABR chặn**, vì nó là đường dẫn tới manifest
+ * chứ không phải URL của một format cụ thể.
+ */
+async function liveHlsFromInnertube(id: string): Promise<string | undefined> {
+  try {
+    const yt: any = await (await import('./innertube')).getYT();
+    for (const client of ['IOS', 'WEB', 'ANDROID', 'TV_EMBEDDED']) {
+      try {
+        const info: any = await yt.getInfo(id, client as any);
+        const url = info?.streaming_data?.hls_manifest_url;
+        if (url) return url;
+      } catch {
+        /* thử client tiếp theo */
+      }
+    }
+  } catch {
+    /* không khởi tạo được InnerTube */
+  }
+  return undefined;
+}
+
 export type ResolveOutcome = {
   result: PipedResult;
   tried: { source: string; note: string }[];
@@ -70,6 +99,65 @@ export type ResolveOutcome = {
 /** URL của googlevideo sống khoảng 6 tiếng; cache 20 phút là an toàn */
 const TTL = Number(process.env.STREAM_CACHE_TTL_MS ?? 20 * 60 * 1000);
 const cache = new Map<string, { at: number; outcome: ResolveOutcome }>();
+
+/**
+ * Cache ghi luôn xuống đĩa.
+ *
+ * Lý do: lúc phát triển, server khởi động lại liên tục — mỗi lần như vậy cache
+ * trong RAM mất sạch và phải chạy lại yt-dlp cho những video vừa xem xong.
+ * Ghi ra file thì mở lại video cũ là phát ngay.
+ *
+ * Video trực tiếp không cache: URL của nó hết hạn rất nhanh.
+ */
+const dataDir = process.env.YOUPE_DATA_DIR || path.resolve(process.cwd(), 'data');
+// đổi tên khi cấu trúc dữ liệu thay đổi, để bản ghi cũ tự bị bỏ qua
+const cacheFile = path.join(dataDir, 'stream-cache-v2.json');
+
+let flushTimer: NodeJS.Timeout | null = null;
+
+function loadDisk() {
+  try {
+    if (!existsSync(cacheFile)) return;
+    const raw = JSON.parse(readFileSync(cacheFile, 'utf-8')) as Record<
+      string,
+      { at: number; outcome: ResolveOutcome }
+    >;
+    const now = Date.now();
+    for (const [id, entry] of Object.entries(raw)) {
+      if (now - entry.at < TTL) cache.set(id, entry);
+    }
+  } catch {
+    /* file hỏng thì bỏ qua, cache lại từ đầu */
+  }
+}
+
+function saveDisk() {
+  if (flushTimer) return;
+  flushTimer = setTimeout(() => {
+    flushTimer = null;
+    try {
+      mkdirSync(dataDir, { recursive: true });
+      const obj: Record<string, unknown> = {};
+      const now = Date.now();
+      for (const [id, entry] of cache) {
+        if (now - entry.at < TTL && !entry.outcome.result.isLive) obj[id] = entry;
+      }
+      const tmp = cacheFile + '.tmp';
+      writeFileSync(tmp, JSON.stringify(obj), 'utf-8');
+      renameSync(tmp, cacheFile);
+    } catch {
+      /* không ghi được cũng không sao, chỉ mất phần tăng tốc */
+    }
+  }, 2000);
+}
+
+const gg = globalThis as any;
+if (!gg.__youpeCacheLoaded) {
+  gg.__youpeCacheLoaded = true;
+  loadDisk();
+  // nạp sẵn worker để video đầu tiên không phải chờ khởi động
+  warmWorker();
+}
 
 /** Nguồn nào vừa thắng thì lần sau thử trước — bỏ qua các tầng đã biết là hỏng */
 let preferred: string | null = null;
@@ -124,10 +212,27 @@ async function resolveUncached(id: string): Promise<ResolveOutcome> {
     try {
       const result = await step.run();
       if (result.formats.length || result.hls) {
-        tried.push({ source: step.source, note: `OK — ${result.formats.length} format` });
+        // Live bắt buộc phải có HLS. Thiếu thì đi hỏi InnerTube — nếu vẫn không có
+        // thì các format rời kia là đoạn cố định, xem một lúc sẽ đứng hình.
+        if (result.isLive && !result.hls) {
+          result.hls = await liveHlsFromInnertube(id);
+        }
+
+        tried.push({
+          source: step.source,
+          note: result.isLive
+            ? `OK — trực tiếp${result.hls ? ' (HLS)' : ' (KHÔNG có HLS)'}`
+            : `OK — ${result.formats.length} format`,
+        });
         preferred = step.source;
+
         const outcome: ResolveOutcome = { result, tried };
-        cache.set(id, { at: Date.now(), outcome });
+
+        // Live không cache: URL hết hạn rất nhanh và nội dung thay đổi liên tục
+        if (!result.isLive) {
+          cache.set(id, { at: Date.now(), outcome });
+          saveDisk();
+        }
         return outcome;
       }
       tried.push({ source: step.source, note: 'không có format nào kèm URL' });

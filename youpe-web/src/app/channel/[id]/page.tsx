@@ -4,11 +4,12 @@ import { use, useEffect, useState } from 'react';
 import VideoCard, { CardSkeleton } from '@/components/VideoCard';
 import { VerifiedIcon } from '@/components/Icons';
 import type { VideoItem } from '@/lib/types';
+import * as subs from '@/lib/subs';
 
 type ChannelData = {
   id: string; name: string; avatar: string; banner: string;
   subsText: string; description: string; handle: string;
-  verified: boolean; videos: VideoItem[]; error?: string;
+  verified: boolean; videos: VideoItem[]; error?: string; tabError?: string;
 };
 
 const TABS = [
@@ -22,6 +23,9 @@ export default function ChannelPage({ params }: { params: Promise<{ id: string }
   const [tab, setTab] = useState('videos');
   const [data, setData] = useState<ChannelData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [subbed, setSubbed] = useState(false);
+
+  useEffect(() => setSubbed(subs.isSubscribed(id)), [id]);
 
   useEffect(() => {
     let alive = true;
@@ -57,8 +61,25 @@ export default function ChannelPage({ params }: { params: Promise<{ id: string }
               {data?.handle} {data?.subsText && `· ${data.subsText}`}
             </p>
             <p className="mt-1 line-clamp-1 max-w-xl text-sm text-yt-sub">{data?.description}</p>
-            <button className="mt-4 rounded-full bg-yt-text px-4 py-2 text-sm font-medium text-yt-bg hover:bg-white/90">
-              Đăng ký
+            <button
+              onClick={() =>
+                data &&
+                setSubbed(
+                  subs.toggleSub({
+                    id: data.id,
+                    name: data.name,
+                    avatar: data.avatar,
+                    subsText: data.subsText,
+                  })
+                )
+              }
+              className={`mt-4 rounded-full px-4 py-2 text-sm font-medium ${
+                subbed
+                  ? 'bg-yt-chip text-yt-text hover:bg-[#3f3f3f]'
+                  : 'bg-yt-text text-yt-bg hover:bg-white/90'
+              }`}
+            >
+              {subbed ? 'Đã đăng ký' : 'Đăng ký'}
             </button>
           </div>
         </div>
@@ -84,7 +105,12 @@ export default function ChannelPage({ params }: { params: Promise<{ id: string }
         </div>
 
         {!loading && !data?.videos?.length && (
-          <p className="py-16 text-center text-yt-sub">Không có video trong mục này.</p>
+          <div className="py-16 text-center">
+            <p className="text-yt-sub">Không có video trong mục này.</p>
+            {data?.tabError && (
+              <p className="mx-auto mt-2 max-w-xl text-xs text-yt-sub/70">{data.tabError}</p>
+            )}
+          </div>
         )}
       </div>
     </div>

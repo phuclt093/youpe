@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getYT, collectVideos } from '@/lib/innertube';
+import { getYT, videosFrom } from '@/lib/innertube';
 import { topicByKey } from '@/lib/topics';
 import type { VideoItem } from '@/lib/types';
 
@@ -43,7 +43,7 @@ async function firstOk(
   for (const a of attempts) {
     try {
       const feed = await a.run();
-      const videos = collectVideos(feed, 48);
+      const videos = videosFrom(feed, 48);
       if (videos.length) return { videos, via: a.name, feed, errors };
       errors.push(`${a.name}: rỗng`);
     } catch (e: any) {
@@ -70,7 +70,7 @@ export async function GET(req: NextRequest) {
 
       try {
         const next = await prev.getContinuation();
-        const videos = collectVideos(next, 48);
+        const videos = videosFrom(next, 48);
         if (videos.length) putCursor(cursorKey, next);
         return NextResponse.json({ videos, done: !videos.length });
       } catch (e: any) {

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { formatDuration } from '@/lib/format';
+import { getPrefs } from '@/lib/prefs';
 
 type Caption = { label: string; lang: string; url: string };
 type Track = { id: number; height: number; label: string; active: boolean };
@@ -32,8 +33,7 @@ const QUALITY_KEY = 'youpe.maxHeight';
 
 function preferredMaxHeight(): number {
   if (typeof window === 'undefined') return DEFAULT_MAX_HEIGHT;
-  const saved = Number(localStorage.getItem(QUALITY_KEY));
-  return Number.isFinite(saved) && saved > 0 ? saved : DEFAULT_MAX_HEIGHT;
+  return getPrefs().maxHeight || DEFAULT_MAX_HEIGHT;
 }
 
 /** Chọn bản cao nhất nhưng không vượt trần; không có bản nào đạt thì lấy thấp nhất */
@@ -62,6 +62,8 @@ export default function Player({
   onEnded,
   related = [],
   onPickVideo,
+  compact = false,
+  onMinimize,
 }: {
   src: string;
   videoId: string;
@@ -72,6 +74,10 @@ export default function Player({
   onEnded?: () => void;
   related?: EndCardItem[];
   onPickVideo?: (id: string) => void;
+  /** Cửa sổ nhỏ: ẩn bớt nút và không hiện màn hình kết thúc */
+  compact?: boolean;
+  /** Bấm nút thu nhỏ trên thanh điều khiển */
+  onMinimize?: () => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -112,6 +118,7 @@ export default function Player({
   const [autoNext, setAutoNext] = useState(true);
   const [resolving, setResolving] = useState(false);
   const [waited, setWaited] = useState(0);
+  const [isLive, setIsLive] = useState(false);
 
   useEffect(() => {
     playingRef.current = playing;
@@ -227,10 +234,11 @@ export default function Player({
     setNeedUnmute(false);
     setEnded(false);
     setCountdown(AUTOPLAY_DELAY);
-    setAutoNext(true);
+    setAutoNext(getPrefs().autoplayNext);
     setBuffering(true);
     setResolving(false);
     setWaited(0);
+    setIsLive(false);
     setPlaying(false);
     setTime(0);
     setDuration(0);
@@ -303,6 +311,26 @@ export default function Player({
           return;
         }
 
+        setIsLive(!!j.isLive);
+
+        // HLS phải được xét TRƯỚC dual/muxed.
+        // Với video trực tiếp, yt-dlp cũng trả vài format rời nhưng chúng là đoạn
+        // cố định — phát được ít phút rồi đứng hình. Chỉ HLS mới bám theo luồng.
+        if (j.hls) {
+          setDegraded(`${j.source} · trực tiếp`);
+          await startShaka(j.hls);
+          return;
+        }
+
+        if (j.liveWithoutHls) {
+          showError(
+            'Không lấy được luồng trực tiếp cho video này. ' +
+              'Buổi phát có thể vừa kết thúc, hoặc kênh giới hạn người xem.',
+            (j.tried ?? []).map((t: any) => `${t.source}: ${t.note}`).join(' | ')
+          );
+          return;
+        }
+
         if (j.dash) {
           await startShaka(j.dash);
           return;
@@ -325,9 +353,6 @@ export default function Player({
             `${j.source} · luồng gộp${j.muxed[0].height ? ` ${j.muxed[0].height}p` : ''}` +
               (j.ms ? ` · ${(j.ms / 1000).toFixed(1)}s` : '')
           );
-        } else if (j.hls) {
-          await startShaka(j.hls);
-          return;
         } else {
           showError('Không có luồng nào phát được cho video này');
           return;
@@ -538,6 +563,33 @@ export default function Player({
     if (a?.src) a.play().catch(() => {});
   }, []);
 
+  /* ---------------- tiếp tục phát khi cửa sổ bị ẩn ---------------- */
+
+  useEffect(() => {
+    if (!getPrefs().playInBackground) return;
+
+    /**
+     * Chuyển sang tab khác hoặc thu nhỏ cửa sổ, trình duyệt có thể tự dừng media.
+     * Ở đây theo dõi và cho chạy lại nếu người dùng chưa chủ động bấm dừng.
+     */
+    const onVisibility = () => {
+      if (document.visibilityState !== 'hidden') return;
+      const v = videoRef.current;
+      const a = audioRef.current;
+      if (!v || !playingRef.current) return;
+
+      // đợi một nhịp: nếu trình duyệt vừa dừng thì cho chạy tiếp
+      setTimeout(() => {
+        if (!playingRef.current) return;
+        if (v.paused) v.play().catch(() => {});
+        if (a?.src && a.paused) a.play().catch(() => {});
+      }, 250);
+    };
+
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, []);
+
   /* ---------------- toàn màn hình & phụ đề ---------------- */
 
   useEffect(() => {
@@ -613,13 +665,14 @@ export default function Player({
         case 'f': toggleFs(); break;
         case 't': onToggleTheater(); break;
         case 'c': setCcOn((c) => !c); break;
+        case 'i': onMinimize?.(); break;
         default: return;
       }
       nudgeUI();
     };
     window.addEventListener('keydown', h);
     return () => window.removeEventListener('keydown', h);
-  }, [togglePlay, seek, toggleFs, onToggleTheater, nudgeUI]);
+  }, [togglePlay, seek, toggleFs, onToggleTheater, nudgeUI, onMinimize]);
 
   const pickQuality = (t: Track) => {
     // nhớ lại để lần sau mở video khác cũng dùng mức này
@@ -719,6 +772,13 @@ export default function Player({
         </button>
       )}
 
+      {isLive && !error && (
+        <div className="anim-fade-in pointer-events-none absolute right-3 top-3 flex items-center gap-1.5 rounded-full bg-yt-red px-2.5 py-1 text-xs font-medium">
+          <span className="h-1.5 w-1.5 rounded-full bg-white" />
+          TRỰC TIẾP
+        </div>
+      )}
+
       {degraded && !error && (
         <div className="anim-fade-in pointer-events-none absolute left-3 top-3 rounded-full bg-black/70 px-3 py-1 text-xs text-yt-sub">
           {degraded}
@@ -772,7 +832,7 @@ export default function Player({
         </div>
       )}
 
-      {ended && !error && (
+      {ended && !error && !compact && (
         <div className="anim-fade-in absolute inset-0 z-20 flex flex-col overflow-y-auto bg-black/90 p-4 sm:p-6">
           {/* hàng trên: xem lại + đếm ngược */}
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -872,8 +932,15 @@ export default function Player({
           }}
         >
           <div className="seek-bar relative h-[3px] w-full overflow-hidden rounded-full bg-white/25">
-            <div className="absolute inset-y-0 left-0 bg-white/40" style={{ width: `${bufPct}%` }} />
-            <div className="absolute inset-y-0 left-0 bg-yt-red" style={{ width: `${pct}%` }} />
+            {/* trực tiếp thì không có tổng thời lượng để vẽ tiến trình */}
+            <div
+              className="absolute inset-y-0 left-0 bg-white/40"
+              style={{ width: isLive ? '100%' : `${bufPct}%` }}
+            />
+            <div
+              className="absolute inset-y-0 left-0 bg-yt-red"
+              style={{ width: isLive ? '100%' : `${pct}%` }}
+            />
           </div>
           <div
             className="pointer-events-none absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 scale-0 rounded-full bg-yt-red transition-transform duration-150 group-hover/seek:scale-100"
@@ -918,9 +985,16 @@ export default function Player({
             />
           </div>
 
-          <span className="ml-2 text-xs tabular-nums">
-            {formatDuration(time)} / {formatDuration(duration)}
-          </span>
+          {isLive ? (
+            <span className="ml-2 flex items-center gap-1.5 text-xs font-medium">
+              <span className="h-2 w-2 rounded-full bg-yt-red" />
+              TRỰC TIẾP
+            </span>
+          ) : (
+            <span className="ml-2 text-xs tabular-nums">
+              {formatDuration(time)} / {formatDuration(duration)}
+            </span>
+          )}
 
           <div className="flex-1" />
 
@@ -1017,12 +1091,36 @@ export default function Player({
             )}
           </div>
 
+          {!compact && (
           <Btn onClick={onToggleTheater} label="Chế độ rạp hát">
             {theater ? (
               <path d="M19 7H5v10h14V7zm2-2v14H3V5h18zM4 8v8h16V8H4z" />
             ) : (
               <path d="M21 6H3v12h18V6zM4 7h16v10H4V7z" />
             )}
+          </Btn>
+          )}
+
+          {!compact && onMinimize && (
+            <Btn onClick={onMinimize} label="Thu nhỏ (I)">
+              <path d="M3 5h18v14H3V5zm2 2v10h14V7H5zm7 4h6v5h-6v-5z" />
+            </Btn>
+          )}
+
+          <Btn
+            onClick={async () => {
+              const v = videoRef.current;
+              if (!v) return;
+              try {
+                if (document.pictureInPictureElement) await document.exitPictureInPicture();
+                else await v.requestPictureInPicture();
+              } catch {
+                /* trình duyệt không hỗ trợ hoặc người dùng từ chối */
+              }
+            }}
+            label="Cửa sổ nổi của trình duyệt"
+          >
+            <path d="M19 11h-8v6h8v-6zm4 8V4.98C23 3.88 22.1 3 21 3H3c-1.1 0-2 .88-2 1.98V19c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2zm-2 .02H3V4.97h18v14.05z" />
           </Btn>
 
           <Btn onClick={toggleFs} label="Toàn màn hình">

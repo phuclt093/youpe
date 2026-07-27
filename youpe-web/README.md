@@ -11,6 +11,23 @@ trình phát riêng (shaka-player), không dùng iframe player của YouTube.
 
 ## Chạy thử
 
+### Cách dễ nhất trên Windows
+
+Bấm đúp `create-shortcut.bat` để tạo shortcut ngoài Desktop, rồi bấm đúp shortcut đó.
+Lần đầu nó tự cài thư viện, tải yt-dlp, build, chạy server và mở trình duyệt.
+
+Có ba shortcut:
+
+| Shortcut | Dùng khi |
+|---|---|
+| `youpe` | Xem trên chính máy này |
+| `youpe (cho TV box)` | Cho TV box, điện thoại cùng mạng vào được — server nghe `0.0.0.0` |
+| `start-youpe-dev.bat` | Đang sửa code, cần tự tải lại |
+
+Xem `HUONG-DAN.txt` nếu gặp trục trặc.
+
+### Bằng dòng lệnh
+
 ```bash
 cd youpe-web
 npm install
