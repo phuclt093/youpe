@@ -53,6 +53,16 @@ function pickStartIndex(list: RawFormat[], cap: number): number {
   return lowest;
 }
 
+/** Những gì trình phát cho phép bên ngoài điều khiển */
+export type PlayerApi = {
+  seek: (t: number) => void;
+  seekBy: (delta: number) => void;
+  togglePlay: () => void;
+  isPlaying: () => boolean;
+  /** Tỉ lệ đã xem, từ 0 đến 1 */
+  progress: () => number;
+};
+
 export default function Player({
   src,
   videoId,
@@ -81,7 +91,7 @@ export default function Player({
   /** Bấm nút thu nhỏ trên thanh điều khiển */
   onMinimize?: () => void;
   /** Phơi vài thao tác ra ngoài, ví dụ để mô tả bấm vào mốc thời gian là tua tới */
-  registerApi?: (api: { seek: (t: number) => void } | null) => void;
+  registerApi?: (api: PlayerApi | null) => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -697,11 +707,24 @@ export default function Player({
     if (hideTimer.current) clearTimeout(hideTimer.current);
   }, []);
 
-  // phơi API ra ngoài sau khi seek đã sẵn sàng
+  /*
+    Phơi API ra ngoài sau khi seek đã sẵn sàng.
+    Ngoài mô tả video bấm mốc thời gian, chỗ này còn để vỏ desktop điều khiển được
+    từ thanh taskbar và phím media của bàn phím.
+  */
   useEffect(() => {
-    registerApi?.({ seek: (t: number) => seek(t) });
+    registerApi?.({
+      seek: (t: number) => seek(t),
+      seekBy: (d: number) => seek((videoRef.current?.currentTime ?? 0) + d),
+      togglePlay,
+      isPlaying: () => !!playingRef.current,
+      progress: () => {
+        const v = videoRef.current;
+        return v?.duration ? v.currentTime / v.duration : 0;
+      },
+    });
     return () => registerApi?.(null);
-  }, [registerApi, seek]);
+  }, [registerApi, seek, togglePlay]);
 
   /* phím tắt giống YouTube */
   useEffect(() => {
@@ -1180,27 +1203,17 @@ export default function Player({
           </Btn>
           )}
 
+          {/*
+            Một nút duy nhất cho cửa sổ nổi. Trước đây có hai nút — "thu nhỏ" tự vẽ và
+            "cửa sổ nổi" của trình duyệt — làm cùng một việc nhưng giành nhau thẻ video.
+            Giờ chỉ còn một đường: `onMinimize` mở cửa sổ nổi có đủ nút điều khiển,
+            và tự lùi về cửa sổ nổi thường của trình duyệt nếu máy không hỗ trợ.
+          */}
           {!compact && onMinimize && (
-            <Btn onClick={onMinimize} label="Thu nhỏ (I)">
-              <path d="M3 5h18v14H3V5zm2 2v10h14V7H5zm7 4h6v5h-6v-5z" />
+            <Btn onClick={onMinimize} label="Cửa sổ nổi (I)">
+              <path d="M19 11h-8v6h8v-6zm4 8V4.98C23 3.88 22.1 3 21 3H3c-1.1 0-2 .88-2 1.98V19c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2zm-2 .02H3V4.97h18v14.05z" />
             </Btn>
           )}
-
-          <Btn
-            onClick={async () => {
-              const v = videoRef.current;
-              if (!v) return;
-              try {
-                if (document.pictureInPictureElement) await document.exitPictureInPicture();
-                else await v.requestPictureInPicture();
-              } catch {
-                /* trình duyệt không hỗ trợ hoặc người dùng từ chối */
-              }
-            }}
-            label="Cửa sổ nổi của trình duyệt"
-          >
-            <path d="M19 11h-8v6h8v-6zm4 8V4.98C23 3.88 22.1 3 21 3H3c-1.1 0-2 .88-2 1.98V19c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2zm-2 .02H3V4.97h18v14.05z" />
-          </Btn>
 
           <Btn onClick={toggleFs} label="Toàn màn hình">
             {fs ? (

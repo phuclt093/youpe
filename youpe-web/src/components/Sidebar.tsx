@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   HomeIcon, FireIcon, SubsIcon, HistoryIcon, ClockIcon, LikeIcon, PlaylistIcon,
+  ShortsIcon,
 } from './Icons';
 import { EXPLORE_TOPICS } from '@/lib/topics';
 
@@ -17,6 +18,7 @@ type Item = { href: string; label: string; icon: (p: any) => React.JSX.Element }
 
 const MAIN: Item[] = [
   { href: '/', label: 'Trang chủ', icon: HomeIcon },
+  { href: '/shorts', label: 'Shorts', icon: ShortsIcon },
   { href: '/?tab=trending', label: 'Thịnh hành', icon: FireIcon },
   { href: '/?tab=music', label: 'Âm nhạc', icon: SubsIcon },
 ];

@@ -9,6 +9,7 @@ import TopProgress from './TopProgress';
 import BackToTop from './BackToTop';
 import Shortcuts from './Shortcuts';
 import PlayerHost from './PlayerHost';
+import DesktopBridge from './DesktopBridge';
 import { applyAnimations, getPrefs } from '@/lib/prefs';
 
 export default function Shell({ children }: { children: React.ReactNode }) {
@@ -52,6 +53,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       </main>
       <BackToTop />
       <Shortcuts />
+      <DesktopBridge />
       </PlayerHost>
     </AuthProvider>
   );

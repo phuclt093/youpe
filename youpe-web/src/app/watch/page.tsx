@@ -22,7 +22,7 @@ export default function WatchPage() {
   const [data, setData] = useState<VideoDetail | null>(null);
   const [err, setErr] = useState('');
   const [theater, setTheater] = useState(false);
-  const { play, mode: playerMode } = usePlayer();
+  const { play } = usePlayer();
   const [expanded, setExpanded] = useState(false);
   const [liked, setLiked] = useState(false);
   const [saved, setSaved] = useState(false);

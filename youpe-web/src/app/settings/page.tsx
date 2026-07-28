@@ -82,10 +82,10 @@ export default function SettingsPage() {
         />
       </Section>
 
-      <Section title="Cửa sổ nhỏ">
+      <Section title="Cửa sổ nổi">
         <Toggle
-          label="Thu nhỏ khi rời trang xem"
-          hint="Chuyển sang trang khác thì video co lại thành cửa sổ nhỏ ở góc màn hình thay vì dừng hẳn. Kéo thanh tiêu đề để di chuyển, kéo góc trái dưới để đổi cỡ."
+          label="Chuyển sang cửa sổ nổi khi rời trang xem"
+          hint="Chuyển sang trang khác thì video nhảy ra cửa sổ nổi riêng thay vì dừng hẳn. Cửa sổ này nằm trên mọi ứng dụng khác, kéo thả và đổi cỡ như cửa sổ thường, và có đủ nút điều khiển."
           value={prefs.miniOnLeave}
           onChange={(v) => update('miniOnLeave', v)}
         />
@@ -209,8 +209,9 @@ export default function SettingsPage() {
               ['F', 'Toàn màn hình'],
               ['T', 'Chế độ rạp hát'],
               ['C', 'Bật tắt phụ đề'],
-              ['I', 'Thu nhỏ cửa sổ'],
-              ['Esc', 'Đóng cửa sổ nhỏ'],
+              ['I', 'Mở cửa sổ nổi'],
+              ['Esc', 'Đóng cửa sổ nổi'],
+              ['↑ / ↓', 'Chuyển video ở trang Shorts'],
             ].map(([k, v]) => (
               <div
                 key={k}

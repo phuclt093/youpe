@@ -1,6 +1,9 @@
 'use strict';
 
-const { app, BrowserWindow, Menu, shell, dialog } = require('electron');
+const {
+  app, BrowserWindow, Menu, shell, dialog, ipcMain, nativeImage, globalShortcut,
+  nativeTheme,
+} = require('electron');
 const { spawn } = require('node:child_process');
 const path = require('node:path');
 const fs = require('node:fs');
@@ -161,6 +164,176 @@ function stopServer() {
   serverProcess = null;
 }
 
+
+/* ---------------- tích hợp taskbar (Windows) ---------------- */
+
+const ASSETS = path.join(__dirname, 'assets');
+const image = (file) => nativeImage.createFromPath(path.join(ASSETS, `${file}.png`));
+
+/**
+ * Windows **không tô lại** icon của hàng nút thu nhỏ — nó vẽ đúng ảnh mình đưa.
+ * Nền hàng nút đó sáng hay tối là theo chủ đề hệ thống, nên icon trắng đặt trên nền
+ * sáng sẽ mất hút hoàn toàn. Vì vậy có sẵn hai bộ và chọn theo chủ đề đang dùng.
+ */
+const themed = (name) =>
+  image(`${name}-${nativeTheme.shouldUseDarkColors ? 'dark' : 'light'}`);
+
+/** Trạng thái phát gần nhất do giao diện web báo lên */
+let playback = { playing: false, progress: 0, title: '' };
+
+function send(cmd) {
+  mainWindow?.webContents.send('youpe:command', cmd);
+}
+
+/**
+ * Hàng nút hiện ra khi rê chuột lên icon taskbar.
+ *
+ * Windows chỉ cho tối đa 7 nút và **không cho đổi số lượng nút sau lần đặt đầu tiên**
+ * trong một số bản — nên luôn đặt đúng ba nút, chỉ đổi ảnh của nút giữa.
+ */
+function updateThumbar() {
+  if (!mainWindow || process.platform !== 'win32') return;
+
+  mainWindow.setThumbarButtons([
+    {
+      tooltip: 'Lùi 10 giây',
+      icon: themed('back'),
+      click: () => send('back10'),
+    },
+    {
+      tooltip: playback.playing ? 'Tạm dừng' : 'Phát',
+      icon: themed(playback.playing ? 'pause' : 'play'),
+      click: () => send('toggle'),
+    },
+    {
+      tooltip: 'Tới 10 giây',
+      icon: themed('forward'),
+      click: () => send('forward10'),
+    },
+  ]);
+}
+
+function updateTaskbarState() {
+  if (!mainWindow) return;
+
+  // Thanh tiến trình chạy dọc theo icon. Giá trị âm là ẩn đi — dùng khi không xem gì,
+  // vì để 0 thì Windows vẫn vẽ một vạch xám trông như đang treo.
+  mainWindow.setProgressBar(playback.title ? playback.progress : -1);
+
+  if (process.platform === 'win32') {
+    if (playback.title) {
+      mainWindow.setOverlayIcon(
+        image(playback.playing ? 'badge-playing' : 'badge-paused'),
+        playback.playing ? `Đang phát: ${playback.title}` : `Tạm dừng: ${playback.title}`
+      );
+    } else {
+      mainWindow.setOverlayIcon(null, '');
+    }
+  }
+}
+
+/**
+ * Jump List — menu hiện khi chuột phải vào icon trên taskbar.
+ *
+ * Mỗi mục là một lệnh khởi chạy lại chính file exe kèm tham số. Bản đang chạy nhận
+ * tham số đó qua sự kiện `second-instance` rồi tự điều hướng, nên bấm vào không mở
+ * thêm cửa sổ mới.
+ */
+function buildJumpList(payload) {
+  if (process.platform !== 'win32') return;
+
+  const task = (title, description, urlPath) => ({
+    type: 'task',
+    program: process.execPath,
+    args: `--youpe-go=${encodeURIComponent(urlPath)}`,
+    title,
+    description,
+    iconPath: process.execPath,
+    iconIndex: 0,
+  });
+
+  const categories = [
+    {
+      type: 'custom',
+      name: 'Điều hướng',
+      items: [
+        task('Trang chủ', 'Mở trang chủ youpe', '/'),
+        task('Shorts', 'Xem video ngắn', '/shorts'),
+        task('Kênh đăng ký', 'Video từ kênh bạn theo dõi', '/subscriptions'),
+        task('Xem sau', 'Danh sách để dành', '/later'),
+      ],
+    },
+  ];
+
+  const push = (name, list) => {
+    if (!list?.length) return;
+    categories.push({
+      type: 'custom',
+      name,
+      // Windows cắt bớt nếu quá dài, giữ 6 mục cho gọn mắt
+      items: list.slice(0, 6).map((v) =>
+        task(v.title, v.channel || 'youpe', `/watch?v=${v.id}`)
+      ),
+    });
+  };
+
+  push('Xem gần đây', payload?.recent);
+  push('Gợi ý cho bạn', payload?.suggested);
+
+  try {
+    app.setJumpList(categories);
+  } catch {
+    // Windows từ chối khi người dùng đã tắt Jump List trong cài đặt hệ thống.
+    // Không phải lỗi của app, bỏ qua.
+  }
+}
+
+/** Bắt tham số --youpe-go=... từ Jump List và đưa cho giao diện web */
+function handleArgs(argv) {
+  const hit = (argv || []).find((a) => a.startsWith('--youpe-go='));
+  if (!hit || !mainWindow) return;
+
+  const target = decodeURIComponent(hit.slice('--youpe-go='.length));
+  mainWindow.webContents.send('youpe:navigate', target);
+}
+
+/** Người dùng đổi chủ đề sáng/tối giữa chừng thì vẽ lại cho khỏi mất hút */
+function watchTheme() {
+  nativeTheme.on('updated', updateThumbar);
+}
+
+function registerIpc() {
+  ipcMain.on('youpe:playback', (_e, state) => {
+    const before = playback.playing;
+    playback = { playing: false, progress: 0, title: '', ...state };
+
+    updateTaskbarState();
+    // vẽ lại hàng nút chỉ khi ảnh nút giữa thật sự đổi
+    if (before !== playback.playing) updateThumbar();
+  });
+
+  ipcMain.on('youpe:jumplist', (_e, payload) => buildJumpList(payload));
+}
+
+/**
+ * Phím media trên bàn phím, dùng được cả khi đang ở ứng dụng khác.
+ * Không đăng ký được (phím đã bị app khác chiếm) thì bỏ qua, không báo lỗi.
+ */
+function registerMediaKeys() {
+  const keys = {
+    MediaPlayPause: 'toggle',
+    MediaNextTrack: 'next',
+    MediaPreviousTrack: 'prev',
+  };
+  for (const [key, cmd] of Object.entries(keys)) {
+    try {
+      globalShortcut.register(key, () => send(cmd));
+    } catch {
+      /* phím đang bị ứng dụng khác giữ */
+    }
+  }
+}
+
 /* ---------------- cửa sổ ---------------- */
 
 function createWindow() {
@@ -183,17 +356,37 @@ function createWindow() {
     },
   });
 
-  mainWindow.once('ready-to-show', () => mainWindow.show());
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.show();
+    updateThumbar();
+    handleArgs(process.argv);
+  });
   mainWindow.loadURL(serverUrl);
 
-  // link ra ngoài mở bằng trình duyệt mặc định, không nuốt vào cửa sổ app
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
+    /*
+      Cửa sổ nổi (Document Picture-in-Picture) cũng đi qua đúng đường này, với địa chỉ
+      `about:blank`. Trước đây mọi thứ đều bị đẩy sang trình duyệt ngoài, nên bấm nút
+      cửa sổ nổi lại ra hộp thoại "Get an app to open this 'about' link" của Windows —
+      hệ điều hành không biết mở `about:` bằng gì.
+
+      Chỉ những địa chỉ web thật mới nên mở ra ngoài. Còn lại để Chromium tự xử lý.
+    */
+    if (/^https?:/i.test(url)) shell.openExternal(url);
+
+    /*
+      Mọi thứ còn lại — chủ yếu là `about:blank` — đều từ chối, và **không** đẩy ra
+      trình duyệt ngoài (Windows không biết mở `about:` bằng gì nên bật hộp thoại lạ).
+
+      Cho phép cũng vô ích: Electron sẽ dựng một BrowserWindow trắng trơn, còn cửa sổ
+      nổi kiểu Document PiP thì Electron chưa cài đặt (electron#39633) nên vẫn hỏng.
+      Phía web đã tự nhận ra đang chạy trong app desktop và dùng đường khác.
+    */
     return { action: 'deny' };
   });
 
   mainWindow.webContents.on('will-navigate', (e, url) => {
-    if (!url.startsWith(serverUrl)) {
+    if (/^https?:/i.test(url) && !url.startsWith(serverUrl)) {
       e.preventDefault();
       shell.openExternal(url);
     }
@@ -202,6 +395,9 @@ function createWindow() {
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
+
+  // tải lại trang thì hàng nút taskbar bị Windows xoá, phải đặt lại
+  mainWindow.webContents.on('did-finish-load', updateThumbar);
 }
 
 function buildMenu() {
@@ -262,10 +458,11 @@ function buildMenu() {
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
-  app.on('second-instance', () => {
+  app.on('second-instance', (_e, argv) => {
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.focus();
+      handleArgs(argv);
     }
   });
 
@@ -273,7 +470,11 @@ if (!app.requestSingleInstanceLock()) {
     try {
       serverUrl = await startServer();
       buildMenu();
+      registerIpc();
       createWindow();
+      buildJumpList(null);
+      registerMediaKeys();
+      watchTheme();
     } catch (e) {
       dialog.showErrorBox('Không khởi động được youpe', String(e?.message ?? e));
       app.quit();
@@ -290,6 +491,7 @@ if (!app.requestSingleInstanceLock()) {
 
   app.on('before-quit', () => {
     app.isQuiting = true;
+    globalShortcut.unregisterAll();
     stopServer();
   });
 

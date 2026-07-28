@@ -5,22 +5,24 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
-import Player, { type EndCardItem } from './Player';
-import { CloseIcon } from './Icons';
+import Player, { type EndCardItem, type PlayerApi } from './Player';
 import { getPrefs } from '@/lib/prefs';
 
 /**
  * Trình phát dùng chung cho cả app.
  *
- * Vấn đề cần giải: muốn xem tiếp trong khung nhỏ khi rời trang xem, thì thẻ `<video>`
+ * Vấn đề cần giải: muốn xem tiếp trong cửa sổ nổi khi rời trang xem, thì thẻ `<video>`
  * **không được unmount**. Nếu để trình phát nằm trong cây của trang xem, chuyển trang
  * là React gỡ nó đi và video nạp lại từ đầu.
  *
  * Cách làm: tạo một thẻ div nằm ngoài React ngay trong `document.body`, rồi dùng
  * `createPortal` để render trình phát vào đó. Vì mục tiêu portal không đổi, React
- * không bao giờ unmount. Khi cần đổi vị trí, ta **di chuyển chính thẻ div đó** bằng
+ * không bao giờ unmount. Khi cần đổi chỗ, ta **di chuyển chính thẻ div đó** bằng
  * `appendChild` — trình duyệt coi đây là thao tác chuyển chỗ chứ không phải xoá rồi
  * tạo lại, nên video chạy liên tục.
+ *
+ * Chính vì vậy mà chuyển sang cửa sổ nổi rất gọn: `appendChild` sang `document.body`
+ * của cửa sổ nổi là xong, video không hề gián đoạn.
  */
 
 export type PlayingVideo = {
@@ -32,68 +34,98 @@ export type PlayingVideo = {
   related: EndCardItem[];
 };
 
-type Mode = 'full' | 'mini';
+type Mode = 'full' | 'pip';
 
 type Ctx = {
   current: PlayingVideo | null;
   mode: Mode;
+  /** Trình duyệt có hỗ trợ cửa sổ nổi kèm điều khiển riêng không */
+  canPip: boolean;
   play: (v: PlayingVideo) => void;
-  setMode: (m: Mode) => void;
+  openPip: () => void;
+  closePip: () => void;
   close: () => void;
   registerSlot: (el: HTMLDivElement | null) => void;
   /** Tua trình phát tới giây thứ t — dùng cho mốc thời gian trong mô tả */
   seek: (t: number) => void;
+  /** Điều khiển đầy đủ, để vỏ desktop dùng cho taskbar và phím media */
+  api: () => PlayerApi | null;
 };
 
 const PlayerCtx = createContext<Ctx>({
   current: null,
   mode: 'full',
+  canPip: false,
   play: () => {},
-  setMode: () => {},
+  openPip: () => {},
+  closePip: () => {},
   close: () => {},
   registerSlot: () => {},
   seek: () => {},
+  api: () => null,
 });
 
 export const usePlayer = () => useContext(PlayerCtx);
 
-/* ---------------- vị trí và kích thước cửa sổ nhỏ ---------------- */
+/* ------------------------------------------------------------------ */
 
-const BOX_KEY = 'youpe.miniBox';
-const MIN_W = 280;
-const MAX_W = 900;
-const MARGIN = 12;
+const PIP_SIZE_KEY = 'youpe.pipSize';
 
-type Box = { x: number; y: number; w: number };
+type PipApi = {
+  requestWindow: (o: { width: number; height: number }) => Promise<Window>;
+  window: Window | null;
+};
 
-function defaultBox(): Box {
-  const w = 400;
-  return {
-    w,
-    x: Math.max(MARGIN, window.innerWidth - w - MARGIN),
-    y: Math.max(MARGIN, window.innerHeight - (w * 9) / 16 - 90),
-  };
+/**
+ * Electron **chưa cài đặt** Document PiP (electron#39633). Đối tượng
+ * `documentPictureInPicture` vẫn có mặt nên feature-detect thông thường bị lừa,
+ * nhưng gọi `requestWindow()` thì ném `Internal error: no window`.
+ * Vì vậy phải nhận ra vỏ desktop và đi thẳng đường khác.
+ */
+function isDesktopShell(): boolean {
+  return !!(globalThis as any).youpeDesktop?.isDesktop;
 }
 
-function loadBox(): Box {
-  try {
-    const raw = localStorage.getItem(BOX_KEY);
-    if (raw) return JSON.parse(raw);
-  } catch {
-    /* dữ liệu hỏng thì dùng mặc định */
+function pipApi(): PipApi | null {
+  if (isDesktopShell()) return null;
+  // Document PiP đòi ngữ cảnh bảo mật; mở app qua địa chỉ LAN thì không có
+  return (globalThis as any).documentPictureInPicture ?? null;
+}
+
+/**
+ * Chép toàn bộ CSS của trang sang cửa sổ nổi.
+ *
+ * Cửa sổ nổi là một document trắng hoàn toàn — không kế thừa gì từ trang gốc.
+ * Không chép thì trình phát sang đó sẽ mất sạch định dạng.
+ *
+ * Phải làm hai đường vì `cssRules` chỉ đọc được với stylesheet cùng nguồn; với
+ * stylesheet từ nơi khác (CDN font chẳng hạn) thì trình duyệt chặn, đành chép lại
+ * thẻ `<link>` để cửa sổ nổi tự tải.
+ */
+function copyStyles(target: Window) {
+  for (const sheet of Array.from(document.styleSheets)) {
+    try {
+      const css = Array.from(sheet.cssRules).map((r) => r.cssText).join('\n');
+      const el = target.document.createElement('style');
+      el.textContent = css;
+      target.document.head.appendChild(el);
+    } catch {
+      const owner = sheet.ownerNode as HTMLLinkElement | null;
+      if (owner?.href) {
+        const link = target.document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = owner.href;
+        target.document.head.appendChild(link);
+      }
+    }
   }
-  return defaultBox();
-}
 
-/** Không cho cửa sổ trôi ra ngoài màn hình, kể cả sau khi đổi cỡ cửa sổ trình duyệt */
-function clampBox(b: Box): Box {
-  const w = Math.min(Math.max(b.w, MIN_W), Math.min(MAX_W, window.innerWidth - MARGIN * 2));
-  const h = (w * 9) / 16 + 44; // 44 là chiều cao thanh tiêu đề
-  return {
-    w,
-    x: Math.min(Math.max(b.x, MARGIN), Math.max(MARGIN, window.innerWidth - w - MARGIN)),
-    y: Math.min(Math.max(b.y, MARGIN), Math.max(MARGIN, window.innerHeight - h - MARGIN)),
-  };
+  // nền tối và bỏ lề mặc định, để trình phát lấp đầy cửa sổ
+  const base = target.document.createElement('style');
+  base.textContent =
+    'html,body{margin:0;padding:0;background:#0f0f0f;color:#fff;overflow:hidden;height:100%}' +
+    '*{box-sizing:border-box}';
+  target.document.head.appendChild(base);
 }
 
 export default function PlayerHost({ children }: { children: React.ReactNode }) {
@@ -101,117 +133,190 @@ export default function PlayerHost({ children }: { children: React.ReactNode }) 
 
   const [host, setHost] = useState<HTMLDivElement | null>(null);
   const [current, setCurrent] = useState<PlayingVideo | null>(null);
-  const [mode, setModeRaw] = useState<Mode>('full');
+  const [mode, setMode] = useState<Mode>('full');
   const [theater, setTheater] = useState(false);
-  const [box, setBox] = useState<Box | null>(null);
-  /** Trình duyệt đang giữ video trong cửa sổ nổi riêng của nó */
-  const [nativePip, setNativePip] = useState(false);
+  const [canPip, setCanPip] = useState(false);
 
   const slotRef = useRef<HTMLDivElement | null>(null);
-  const apiRef = useRef<{ seek: (t: number) => void } | null>(null);
-  /** Người dùng tự bấm thu nhỏ thì giữ nguyên ý muốn đó, kể cả khi đang ở trang xem */
+  const apiRef = useRef<PlayerApi | null>(null);
+  const pipWinRef = useRef<Window | null>(null);
+  /** Người dùng tự bấm mở cửa sổ nổi thì giữ nguyên ý muốn đó khi quay lại trang xem */
   const userChose = useRef(false);
 
   /* ---------- tạo thẻ chứa, một lần duy nhất ---------- */
   useEffect(() => {
     const el = document.createElement('div');
     el.id = 'youpe-player-host';
+    el.className = 'w-full';
     document.body.appendChild(el);
     setHost(el);
-    setBox(clampBox(loadBox()));
+    setCanPip(!!pipApi());
 
     return () => {
       el.remove();
     };
   }, []);
 
-  /**
-   * Cửa sổ nổi của trình duyệt và cửa sổ nhỏ của app là hai cách làm cùng một việc.
-   * Bật cả hai thì thẻ `<video>` bị trình duyệt bốc đi, chỗ cũ chỉ còn lại một ô đen
-   * ghi "Playing in picture-in-picture" — trông đúng như một lỗi giao diện.
-   * Nên khi cửa sổ nổi bật lên thì ẩn hẳn cửa sổ nhỏ đi.
-   */
-  useEffect(() => {
-    const on = () => setNativePip(true);
-    const off = () => setNativePip(false);
-    document.addEventListener('enterpictureinpicture', on, true);
-    document.addEventListener('leavepictureinpicture', off, true);
-    return () => {
-      document.removeEventListener('enterpictureinpicture', on, true);
-      document.removeEventListener('leavepictureinpicture', off, true);
-    };
-  }, []);
-
-  // quay lại trang xem thì kéo video ra khỏi cửa sổ nổi, không thì trang xem trống trơn
-  useEffect(() => {
-    if (mode === 'full' && document.pictureInPictureElement) {
-      document.exitPictureInPicture().catch(() => {});
-    }
-  }, [mode]);
-
-  /* ---------- di chuyển thẻ chứa khi đổi chế độ ---------- */
+  /* ---------- đưa thẻ chứa về đúng chỗ ---------- */
   const place = useCallback(() => {
     if (!host) return;
 
-    if (mode === 'full' && slotRef.current) {
-      host.removeAttribute('style');
-      host.className = 'w-full';
-      if (host.parentElement !== slotRef.current) slotRef.current.appendChild(host);
+    const pip = pipWinRef.current;
+    if (mode === 'pip' && pip && !pip.closed) {
+      if (host.ownerDocument !== pip.document) pip.document.body.appendChild(host);
+      host.style.display = '';
       return;
     }
 
-    const b = box ?? clampBox(defaultBox());
-    host.className =
-      'fixed z-[120] overflow-hidden rounded-xl bg-yt-bg shadow-2xl ring-1 ring-white/10' +
-      (nativePip ? ' invisible pointer-events-none' : '');
-    host.style.left = `${b.x}px`;
-    host.style.top = `${b.y}px`;
-    host.style.width = `${b.w}px`;
+    if (slotRef.current) {
+      if (host.parentElement !== slotRef.current) slotRef.current.appendChild(host);
+      host.style.display = '';
+      return;
+    }
+
+    /*
+      Không có chỗ nào trên trang để đặt (đã rời trang xem, mà cửa sổ nổi cũng không
+      mở được). Vẫn phải giữ thẻ chứa sống để video không bị nạp lại, nhưng giấu đi —
+      không giấu thì trình phát nằm chình ình dưới đáy mọi trang.
+    */
     if (host.parentElement !== document.body) document.body.appendChild(host);
-  }, [host, mode, box, nativePip]);
+    host.style.display = 'none';
+  }, [host, mode]);
 
   useEffect(place, [place, current]);
 
-  // Esc đóng cửa sổ nhỏ
-  useEffect(() => {
-    if (mode !== 'mini') return;
-    const h = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
-      if (e.key === 'Escape') setCurrent(null);
-    };
-    window.addEventListener('keydown', h);
-    return () => window.removeEventListener('keydown', h);
-  }, [mode]);
+  /* ---------- mở cửa sổ nổi ---------- */
+  const openPip = useCallback(async (toggle = false) => {
+    if (!host || !current) return;
 
-  // đổi cỡ cửa sổ trình duyệt thì kéo cửa sổ nhỏ về trong màn hình
-  useEffect(() => {
-    const h = () => setBox((b) => (b ? clampBox(b) : b));
-    window.addEventListener('resize', h);
-    return () => window.removeEventListener('resize', h);
+    const api = pipApi();
+
+    // Không có Document PiP (app desktop, Firefox, Safari, hoặc mở qua địa chỉ LAN)
+    // thì dùng cửa sổ nổi gắn thẳng vào thẻ video: ít nút hơn nhưng chắc chắn chạy.
+    if (!api) {
+      const v = host.querySelector('video') as HTMLVideoElement | null;
+      if (!v) return;
+      try {
+        if (document.pictureInPictureElement) {
+          // Rời trang xem mà video đã ở cửa sổ nổi rồi thì để yên. Chỉ khi người dùng
+          // chủ động bấm nút mới hiểu là muốn tắt.
+          if (toggle) await document.exitPictureInPicture();
+        } else {
+          await v.requestPictureInPicture();
+        }
+      } catch {
+        /* máy không hỗ trợ hoặc người dùng từ chối */
+      }
+      return;
+    }
+
+    if (pipWinRef.current && !pipWinRef.current.closed) {
+      pipWinRef.current.focus();
+      return;
+    }
+
+    let size = { width: 480, height: 320 };
+    try {
+      const saved = localStorage.getItem(PIP_SIZE_KEY);
+      if (saved) size = JSON.parse(saved);
+    } catch {
+      /* dữ liệu hỏng thì dùng mặc định */
+    }
+
+    try {
+      const win = await api.requestWindow(size);
+      pipWinRef.current = win;
+      copyStyles(win);
+      win.document.body.appendChild(host);
+      setMode('pip');
+      userChose.current = true;
+
+      // nhớ kích thước người dùng đã kéo
+      const remember = () => {
+        try {
+          localStorage.setItem(
+            PIP_SIZE_KEY,
+            JSON.stringify({ width: win.innerWidth, height: win.innerHeight })
+          );
+        } catch {
+          /* bộ nhớ đầy thì thôi */
+        }
+      };
+      win.addEventListener('resize', remember);
+
+      win.addEventListener('pagehide', () => {
+        remember();
+        pipWinRef.current = null;
+        userChose.current = false;
+        setMode('full');
+        // không còn chỗ nào để đặt thì dừng hẳn, đừng phát ngầm
+        if (!slotRef.current) setCurrent(null);
+      });
+    } catch {
+      /*
+        Hỏng thì phải dọn cho sạch. Trước đây chỗ này chỉ đặt lại `mode`, mà mode vốn
+        đã là 'full' nên React không render lại, `place()` không chạy, và thẻ chứa nằm
+        lại chỗ dở dang — video biến mất khỏi trang.
+      */
+      try {
+        pipWinRef.current?.close();
+      } catch {
+        /* cửa sổ đã đóng sẵn */
+      }
+      pipWinRef.current = null;
+      userChose.current = false;
+      setMode('full');
+
+      if (slotRef.current) slotRef.current.appendChild(host);
+      else {
+        document.body.appendChild(host);
+        host.style.display = 'none';
+      }
+    }
+  }, [host, current]);
+
+  const closePip = useCallback(() => {
+    pipWinRef.current?.close();
+    pipWinRef.current = null;
+    userChose.current = false;
+    setMode('full');
   }, []);
 
-  const setMode = useCallback((m: Mode) => {
-    userChose.current = m === 'mini';
-    setModeRaw(m);
+  /* ---------- Esc trong cửa sổ nổi thì đóng ---------- */
+  useEffect(() => {
+    const win = pipWinRef.current;
+    if (mode !== 'pip' || !win) return;
+
+    const h = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closePip();
+    };
+    win.addEventListener('keydown', h);
+    return () => win.removeEventListener('keydown', h);
+  }, [mode, closePip]);
+
+  /* ---------- đóng app thì đóng luôn cửa sổ nổi ---------- */
+  useEffect(() => {
+    const h = () => pipWinRef.current?.close();
+    window.addEventListener('pagehide', h);
+    return () => window.removeEventListener('pagehide', h);
   }, []);
 
   const registerSlot = useCallback(
     (el: HTMLDivElement | null) => {
       slotRef.current = el;
 
-      if (!el && current) {
-        // rời trang xem: thu nhỏ thay vì dừng hẳn
-        if (getPrefs().miniOnLeave) setModeRaw('mini');
+      if (!el && current && mode !== 'pip') {
+        // rời trang xem: chuyển sang cửa sổ nổi thay vì dừng hẳn
+        if (getPrefs().miniOnLeave) openPip();
         else setCurrent(null);
-      } else if (el && !userChose.current) {
-        setModeRaw('full');
+      } else if (el && mode !== 'pip') {
+        setMode('full');
       }
 
       // hoãn một nhịp để chờ DOM của trang mới dựng xong
       requestAnimationFrame(place);
     },
-    [current, place]
+    [current, mode, place, openPip]
   );
 
   const play = useCallback((v: PlayingVideo) => {
@@ -219,85 +324,19 @@ export default function PlayerHost({ children }: { children: React.ReactNode }) 
   }, []);
 
   const close = useCallback(() => {
-    setCurrent(null);
+    pipWinRef.current?.close();
+    pipWinRef.current = null;
     userChose.current = false;
-    setModeRaw('full');
+    setCurrent(null);
+    setMode('full');
   }, []);
 
-  const expand = useCallback(() => {
-    userChose.current = false;
-    setModeRaw('full');
-    if (current) router.push(`/watch?v=${current.videoId}`);
-  }, [current, router]);
-
-  /* ---------- kéo thả và đổi cỡ ---------- */
-
-  const startDrag = useCallback(
-    (e: React.PointerEvent) => {
-      if (!box) return;
-      e.preventDefault();
-      const startX = e.clientX;
-      const startY = e.clientY;
-      const origin = { ...box };
-
-      const move = (ev: PointerEvent) => {
-        setBox(
-          clampBox({
-            ...origin,
-            x: origin.x + (ev.clientX - startX),
-            y: origin.y + (ev.clientY - startY),
-          })
-        );
-      };
-      const up = () => {
-        window.removeEventListener('pointermove', move);
-        window.removeEventListener('pointerup', up);
-        setBox((b) => {
-          if (b) localStorage.setItem(BOX_KEY, JSON.stringify(b));
-          return b;
-        });
-      };
-
-      window.addEventListener('pointermove', move);
-      window.addEventListener('pointerup', up);
-    },
-    [box]
-  );
-
-  const startResize = useCallback(
-    (e: React.PointerEvent) => {
-      if (!box) return;
-      e.preventDefault();
-      e.stopPropagation();
-      const startX = e.clientX;
-      const origin = { ...box };
-
-      const move = (ev: PointerEvent) => {
-        // kéo sang trái là to ra: mép trái lùi lại, mép phải đứng yên
-        const dx = startX - ev.clientX;
-        const w = Math.min(Math.max(origin.w + dx, MIN_W), MAX_W);
-        setBox(clampBox({ ...origin, w, x: origin.x + (origin.w - w) }));
-      };
-      const up = () => {
-        window.removeEventListener('pointermove', move);
-        window.removeEventListener('pointerup', up);
-        setBox((b) => {
-          if (b) localStorage.setItem(BOX_KEY, JSON.stringify(b));
-          return b;
-        });
-      };
-
-      window.addEventListener('pointermove', move);
-      window.addEventListener('pointerup', up);
-    },
-    [box]
-  );
-
   const seek = useCallback((t: number) => apiRef.current?.seek(t), []);
+  const api = useCallback(() => apiRef.current, []);
 
   const value = useMemo<Ctx>(
-    () => ({ current, mode, play, setMode, close, registerSlot, seek }),
-    [current, mode, play, setMode, close, registerSlot, seek]
+    () => ({ current, mode, canPip, play, openPip, closePip, close, registerSlot, seek, api }),
+    [current, mode, canPip, play, openPip, closePip, close, registerSlot, seek, api]
   );
 
   return (
@@ -308,12 +347,15 @@ export default function PlayerHost({ children }: { children: React.ReactNode }) 
         current &&
         createPortal(
           <div className="relative">
-            {mode === 'mini' && (
-              <MiniBar
+            {mode === 'pip' && (
+              <PipBar
                 title={current.title}
                 channel={current.channelName}
-                onDragStart={startDrag}
-                onExpand={expand}
+                onExpand={() => {
+                  closePip();
+                  router.push(`/watch?v=${current.videoId}`);
+                  window.focus();
+                }}
                 onClose={close}
               />
             )}
@@ -328,53 +370,12 @@ export default function PlayerHost({ children }: { children: React.ReactNode }) 
               onToggleTheater={() => mode === 'full' && setTheater((t) => !t)}
               related={current.related}
               onPickVideo={(next) => router.push(`/watch?v=${next}`)}
-              compact={mode === 'mini'}
-              onMinimize={() => setMode('mini')}
+              compact={mode === 'pip'}
+              onMinimize={mode === 'full' ? () => openPip(true) : undefined}
               registerApi={(api) => {
                 apiRef.current = api;
               }}
             />
-
-            {mode === 'mini' && (
-              <>
-                {/*
-                  Nút nổi ngay trên khung hình. Thanh tiêu đề có thể bị đẩy ra ngoài
-                  màn hình khi cửa sổ nằm sát mép, nên luôn cần một lối đóng nữa.
-                */}
-                <div className="absolute right-2 top-14 flex gap-1">
-                  <button
-                    onClick={expand}
-                    title="Mở lại toàn màn hình"
-                    aria-label="Mở lại toàn màn hình"
-                    className="grid h-7 w-7 place-items-center rounded-full bg-black/70 hover:bg-black/90"
-                  >
-                    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor" aria-hidden>
-                      <path d="M4 4h7v2H6v5H4V4zm16 0v7h-2V6h-5V4h7zM4 20v-7h2v5h5v2H4zm16 0h-7v-2h5v-5h2v7z" />
-                    </svg>
-                  </button>
-
-                  <button
-                    onClick={close}
-                    title="Đóng (Esc)"
-                    aria-label="Đóng"
-                    className="grid h-7 w-7 place-items-center rounded-full bg-black/70 hover:bg-yt-red"
-                  >
-                    <CloseIcon className="h-4 w-4" />
-                  </button>
-                </div>
-
-                {/* tay nắm ở góc trái dưới để đổi cỡ */}
-                <div
-                  onPointerDown={startResize}
-                  title="Kéo để đổi kích thước"
-                  className="absolute bottom-0 left-0 h-5 w-5 cursor-nesw-resize"
-                >
-                  <svg viewBox="0 0 20 20" className="h-full w-full text-white/40" fill="currentColor" aria-hidden>
-                    <path d="M2 18v-6h1.5v4.5H8V18H2z" />
-                  </svg>
-                </div>
-              </>
-            )}
           </div>,
           host
         )}
@@ -382,39 +383,34 @@ export default function PlayerHost({ children }: { children: React.ReactNode }) 
   );
 }
 
-/** Thanh tiêu đề của cửa sổ nhỏ: kéo để di chuyển, bấm để về trang xem */
-function MiniBar({
+/**
+ * Thanh tiêu đề trong cửa sổ nổi.
+ *
+ * Cửa sổ nổi của trình duyệt không có thanh tiêu đề riêng, nên nếu không tự vẽ thì
+ * chẳng biết mình đang xem video nào và cũng không có lối quay về trang xem.
+ */
+function PipBar({
   title,
   channel,
-  onDragStart,
   onExpand,
   onClose,
 }: {
   title: string;
   channel: string;
-  onDragStart: (e: React.PointerEvent) => void;
   onExpand: () => void;
   onClose: () => void;
 }) {
   return (
-    <div
-      onPointerDown={onDragStart}
-      className="flex cursor-grab items-center gap-2 bg-yt-elev px-3 py-2 active:cursor-grabbing"
-    >
-      <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 text-yt-sub" fill="currentColor" aria-hidden>
-        <path d="M9 4h2v2H9V4zm4 0h2v2h-2V4zM9 9h2v2H9V9zm4 0h2v2h-2V9zm-4 5h2v2H9v-2zm4 0h2v2h-2v-2zm-4 5h2v2H9v-2zm4 0h2v2h-2v-2z" />
-      </svg>
-
+    <div className="flex items-center gap-2 bg-yt-elev px-3 py-2">
       <div className="min-w-0 flex-1">
         <p className="truncate text-xs font-medium">{title}</p>
         <p className="truncate text-[11px] text-yt-sub">{channel}</p>
       </div>
 
       <button
-        onPointerDown={(e) => e.stopPropagation()}
         onClick={onExpand}
-        title="Mở lại toàn màn hình"
-        aria-label="Mở lại toàn màn hình"
+        title="Mở lại ở cửa sổ chính"
+        aria-label="Mở lại ở cửa sổ chính"
         className="rounded-full p-1.5 hover:bg-yt-hover"
       >
         <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor" aria-hidden>
@@ -423,13 +419,14 @@ function MiniBar({
       </button>
 
       <button
-        onPointerDown={(e) => e.stopPropagation()}
         onClick={onClose}
-        title="Đóng"
+        title="Đóng (Esc)"
         aria-label="Đóng"
-        className="rounded-full p-1.5 hover:bg-yt-hover"
+        className="rounded-full p-1.5 hover:bg-yt-red"
       >
-        <CloseIcon className="h-4 w-4" />
+        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor" aria-hidden>
+          <path d="M13.06 12l6.47-6.47-1.06-1.06L12 10.94 5.53 4.47 4.47 5.53 10.94 12l-6.47 6.47 1.06 1.06L12 13.06l6.47 6.47 1.06-1.06L13.06 12z" />
+        </svg>
       </button>
     </div>
   );
@@ -438,11 +435,11 @@ function MiniBar({
 /**
  * Chỗ đặt trình phát trên trang xem.
  *
- * Bình thường là khung rỗng đúng tỉ lệ để trình phát chuyển vào. Khi người dùng
- * đang xem ở cửa sổ nhỏ thì hiện lời nhắc kèm nút đưa về lại.
+ * Bình thường là khung rỗng để trình phát chuyển vào. Khi video đang ở cửa sổ nổi
+ * thì hiện lời nhắc kèm nút đưa về.
  */
 export function PlayerSlot({ className = '' }: { className?: string }) {
-  const { registerSlot, mode, setMode } = usePlayer();
+  const { registerSlot, mode, closePip } = usePlayer();
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -455,13 +452,13 @@ export function PlayerSlot({ className = '' }: { className?: string }) {
     <>
       <div ref={ref} className={`w-full ${className}`} />
 
-      {mode === 'mini' && (
+      {mode === 'pip' && (
         <div className="grid aspect-video w-full place-items-center rounded-xl bg-yt-elev text-center">
           <div>
-            <p className="text-sm text-yt-sub">Đang phát ở cửa sổ nhỏ</p>
+            <p className="text-sm text-yt-sub">Đang phát ở cửa sổ nổi</p>
             <button
-              onClick={() => setMode('full')}
-              className="mt-3 rounded-full bg-yt-chip px-4 py-2 text-sm font-medium hover:bg-[#3f3f3f]"
+              onClick={closePip}
+              className="mt-3 rounded-full bg-white px-4 py-2 text-sm font-medium text-black hover:bg-white/90"
             >
               Đưa về đây
             </button>

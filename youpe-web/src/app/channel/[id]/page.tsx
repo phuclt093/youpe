@@ -140,14 +140,9 @@ export default function ChannelPage({ params }: { params: Promise<{ id: string }
               : (data?.playlists ?? []).map((p, i) => (
                   <Link
                     key={p.id}
-                    href={`/watch?v=&list=${p.id}`}
+                    href={`/list/${p.id}`}
                     style={{ animationDelay: `${Math.min(i, 11) * 35}ms` }}
                     className="anim-fade-up group flex flex-col"
-                    onClick={(e) => {
-                      // chưa có trang xem playlist của YouTube, mở thẳng trên youtube.com
-                      e.preventDefault();
-                      window.open(`https://www.youtube.com/playlist?list=${p.id}`, '_blank');
-                    }}
                   >
                     <div className="card-thumb relative aspect-video w-full overflow-hidden rounded-xl bg-yt-elev">
                       {p.thumbnail ? (
