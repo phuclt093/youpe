@@ -185,6 +185,50 @@ export default function PlayerHost({ children }: { children: React.ReactNode }) 
 
   useEffect(place, [place, current]);
 
+  /* ---------- đổi video khi đang ở cửa sổ nổi thường ---------- */
+
+  const prevId = useRef<string | null>(null);
+
+  /**
+   * Trình phát được gắn `key={videoId}`, nên đổi video là React dựng lại toàn bộ,
+   * kể cả thẻ `<video>`. Thẻ cũ bị gỡ khỏi cây DOM, **nhưng cửa sổ nổi của trình duyệt
+   * vẫn giữ chặt nó** — Chromium cho phép cửa sổ nổi bám vào một thẻ đã rời DOM. Kết quả
+   * là video cũ tiếp tục chạy trong cửa sổ nổi trong khi trang đã sang video khác: hai
+   * video phát cùng lúc, đúng như những gì nhìn thấy.
+   *
+   * Nên phải chủ động nhả cửa sổ nổi rồi mở lại trên thẻ mới.
+   */
+  useEffect(() => {
+    const id = current?.videoId ?? null;
+    if (id === prevId.current) return;
+
+    const isFirst = prevId.current === null;
+    prevId.current = id;
+
+    if (isFirst || !id || !host) return;
+    if (!document.pictureInPictureElement) return;
+
+    document.exitPictureInPicture().catch(() => {});
+
+    // Chờ thẻ video mới có dữ liệu rồi mới đưa vào cửa sổ nổi. Bỏ cuộc sau 5 giây:
+    // quá mốc đó thì quyền thao tác của người dùng đã hết hiệu lực, có gọi cũng bị từ chối.
+    let tries = 0;
+    const t = setInterval(() => {
+      const v = host.querySelector('video') as HTMLVideoElement | null;
+
+      if (v && v.readyState >= 1) {
+        clearInterval(t);
+        v.requestPictureInPicture().catch(() => {
+          /* hết quyền thao tác — video vẫn xem được trên trang, không sao */
+        });
+      } else if (++tries > 20) {
+        clearInterval(t);
+      }
+    }, 250);
+
+    return () => clearInterval(t);
+  }, [current?.videoId, host]);
+
   /* ---------- mở cửa sổ nổi ---------- */
   const openPip = useCallback(async (toggle = false) => {
     if (!host || !current) return;

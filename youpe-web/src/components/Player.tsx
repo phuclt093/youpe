@@ -390,6 +390,12 @@ export default function Player({
       const p = playerRef.current;
       playerRef.current = null;
 
+      // Dừng trước đã, bất kể đang ở chế độ nào. Thẻ media có thể đang bị cửa sổ nổi
+      // của trình duyệt giữ, lúc đó nó rời khỏi cây DOM nhưng **vẫn phát tiếp** —
+      // không dừng thì video cũ chạy song song với video mới.
+      videoRef.current?.pause();
+      audioRef.current?.pause();
+
       if (p) {
         // shaka tự ngắt các request đang bay khi destroy
         p.destroy?.().catch?.(() => {});
@@ -401,7 +407,6 @@ export default function Player({
       // vừa tranh chấp với luồng mới.
       for (const el of [videoRef.current, audioRef.current]) {
         if (!el || !el.getAttribute('src')) continue;
-        el.pause();
         el.removeAttribute('src');
         el.load(); // bắt buộc: chỉ xoá src thôi thì request vẫn chạy
       }
