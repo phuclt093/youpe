@@ -5,8 +5,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
-import com.youpe.tv.data.Settings
-import com.youpe.tv.data.VideoItem
+import com.youpe.core.data.Settings
+import com.youpe.core.data.VideoItem
 import com.youpe.tv.player.PlayerScreen
 import com.youpe.tv.ui.screens.HomeScreen
 import com.youpe.tv.ui.screens.SearchScreen

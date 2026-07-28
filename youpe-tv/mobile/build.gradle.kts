@@ -6,14 +6,15 @@ plugins {
 }
 
 android {
-    namespace = "com.youpe.tv"
+    namespace = "com.youpe.mobile"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.youpe.tv"
-        // 21 là mức tối thiểu thực tế cho Android TV box đời cũ
-        minSdk = 21
-        targetSdk = 34
+        applicationId = "com.youpe.mobile"
+        // 23 thay vì 21 như bản TV: điện thoại đời thấp hơn mức này gần như không còn ai dùng,
+        // mà đổi lại được quyền dùng API thời lượng pin và bộ nhớ mới hơn
+        minSdk = 23
+        targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
     }
@@ -23,30 +24,23 @@ android {
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
-        debug {
-            applicationIdSuffix = ".debug"
-        }
+        debug { applicationIdSuffix = ".debug" }
     }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
-        // cần cho minSdk thấp mà vẫn dùng API mới của Java
-        isCoreLibraryDesugaringEnabled = false
     }
     kotlinOptions { jvmTarget = "17" }
 
     buildFeatures { compose = true }
 
-    packaging {
-        resources.excludes += setOf("/META-INF/{AL2.0,LGPL2.1}")
-    }
+    packaging { resources.excludes += setOf("/META-INF/{AL2.0,LGPL2.1}") }
 }
 
 dependencies {
     implementation(project(":core"))
 
-    implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.activity.compose)
@@ -54,15 +48,13 @@ dependencies {
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)
+    implementation(libs.androidx.compose.foundation)
+    implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.compose.material.icons)
     implementation(libs.androidx.compose.ui.tooling.preview)
     debugImplementation(libs.androidx.compose.ui.tooling)
 
-    implementation(libs.androidx.tv.material)
-    implementation(libs.androidx.tv.foundation)
     implementation(libs.androidx.navigation.compose)
-
     implementation(libs.media3.ui)
-
     implementation(libs.coil.compose)
-
 }

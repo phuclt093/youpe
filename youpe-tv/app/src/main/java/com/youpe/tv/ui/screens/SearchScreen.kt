@@ -21,8 +21,8 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
-import com.youpe.tv.data.Api
-import com.youpe.tv.data.VideoItem
+import com.youpe.core.data.Api
+import com.youpe.core.data.VideoItem
 import com.youpe.tv.ui.components.VideoCard
 import com.youpe.tv.ui.theme.Accent
 import com.youpe.tv.ui.theme.TextSub

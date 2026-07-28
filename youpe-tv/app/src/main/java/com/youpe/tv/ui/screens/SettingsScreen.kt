@@ -11,7 +11,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Button
 import androidx.tv.material3.Text
-import com.youpe.tv.data.Settings
+import com.youpe.core.data.Settings
 import com.youpe.tv.ui.theme.Accent
 import com.youpe.tv.ui.theme.TextSub
 import kotlinx.coroutines.flow.first

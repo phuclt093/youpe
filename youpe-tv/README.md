@@ -1,72 +1,74 @@
-# youpe-tv — ứng dụng Android TV
+# youpe cho Android — TV box và điện thoại
 
-Client cho server `youpe-web`. **Toàn bộ phần khó nằm ở server** — trích xuất bằng
-yt-dlp, trộn gợi ý, cache. App TV chỉ đọc JSON rồi phát, nên nó nhẹ và không phải
-chạy yt-dlp trên box.
+Một project Gradle, ba module:
 
-## Vì sao native chứ không bọc WebView
+| Module | Là gì | Cài lên đâu |
+|---|---|---|
+| `:core` | Phần lõi dùng chung — gọi API, mô hình dữ liệu, trình phát Media3, tải offline | không cài riêng |
+| `:app` | Giao diện Android TV, điều khiển bằng remote | TV box, Android TV |
+| `:mobile` | Giao diện điện thoại, chạm và vuốt | điện thoại, máy tính bảng |
 
-`MergingMediaSource` của Media3 ghép luồng hình và luồng tiếng ngay trong ExoPlayer.
-Bản web phải đồng bộ thủ công hai thẻ `<video>` và `<audio>` rồi tự sửa lệch mỗi giây,
-vì trình duyệt không có sẵn khả năng này — cách đó chạy tạm được trên máy tính nhưng
-rất dễ giật trên phần cứng yếu của TV box.
+Hai giao diện tách riêng vì remote và ngón tay không dùng chung được một bố cục.
+Nhưng phần khó thì giống hệt nhau, nên nó nằm ở `:core` — sửa một lỗi là cả hai
+bản cùng được sửa.
+
+## Trước khi chạy
+
+Cả hai app **không tự trích xuất video**. Chúng chỉ đọc JSON từ server `youpe-web`
+chạy trên máy tính trong nhà. Nên phải bật server trước:
+
+```
+cd youpe-web
+npm run dev
+```
+
+Rồi xem địa chỉ LAN của máy tính (Windows: `ipconfig`, thường dạng `192.168.1.x`)
+và nhập vào màn hình đầu tiên của app, kèm cổng — ví dụ `192.168.1.10:3000`.
+
+Điện thoại và máy tính phải cùng một mạng wifi.
 
 ## Build
 
-Cần Android Studio (bản Ladybug trở lên) và JDK 17.
+```
+# bản TV
+gradlew :app:assembleRelease
 
-1. Mở thư mục `youpe-tv` bằng Android Studio, chờ Gradle sync.
-2. Cắm TV box qua ADB hoặc bật ADB qua mạng:
-   ```bash
-   adb connect 192.168.1.20:5555
-   ```
-3. Bấm Run, hoặc build APK:
-   ```bash
-   ./gradlew assembleDebug
-   adb install -r app/build/outputs/apk/debug/app-debug.apk
-   ```
+# bản điện thoại
+gradlew :mobile:assembleRelease
+```
 
-Chưa có Gradle wrapper trong repo — Android Studio sẽ tự sinh khi mở lần đầu.
-Muốn tạo tay: `gradle wrapper --gradle-version 8.9`.
+File APK nằm ở `app/build/outputs/apk/release/` và `mobile/build/outputs/apk/release/`.
 
-## Cấu hình lần đầu
+Cài bằng cách chép sang thiết bị rồi mở, hoặc:
 
-Mở app, nhập địa chỉ server dạng `http://192.168.1.10:3000`.
+```
+adb install -r mobile/build/outputs/apk/release/mobile-release.apk
+```
 
-Xem IP của máy chạy server: `ipconfig` (Windows) hoặc `ip addr` (Linux).
+TV box thường không có trình duyệt file tiện dụng — cách gọn nhất là dùng `adb connect`
+qua mạng LAN sau khi bật gỡ lỗi USB trong phần Tuỳ chọn nhà phát triển.
 
-Ba lỗi hay gặp khi không kết nối được:
+## Bản điện thoại có gì
 
-1. Server đang chạy ở chế độ chỉ nghe localhost. Chạy lại bằng
-   `npx next dev -H 0.0.0.0` hoặc `npx next start -H 0.0.0.0`.
-2. Tường lửa Windows chặn cổng 3000. Mở cổng cho Node, hoặc chạy trong PowerShell
-   quyền quản trị:
-   ```powershell
-   New-NetFirewallRule -DisplayName "youpe" -Direction Inbound -LocalPort 3000 -Protocol TCP -Action Allow
-   ```
-3. TV box và máy chủ khác mạng Wi-Fi — nhất là khi router phát cả băng tần khách.
+- **Phát nền**: tắt màn hình vẫn nghe tiếp, điều khiển ở thanh thông báo và màn hình khoá
+- **Cửa sổ nổi**: bấm nút Home khi đang xem thì video thu thành cửa sổ nhỏ
+- **Shorts**: vuốt dọc như bản web
+- **Tải về xem offline**: tải xong xem được cả khi server tắt
+- **Đăng nhập**: đồng bộ lịch sử, xem sau, đã thích với bản web và TV
 
-## Điều khiển
+## Vì sao trình phát nằm trong một Service
 
-| Phím | Tác dụng |
-|---|---|
-| Mũi tên | Di chuyển giữa các thẻ video |
-| OK | Chọn, hoặc phát/dừng khi đang xem |
-| Trái / Phải khi đang xem | Tua 10 giây |
-| Back | Quay lại, ở trang chủ thì thoát |
+Nếu `ExoPlayer` sống trong Activity thì xoay máy hay tắt màn hình là Android được
+phép giết Activity, và video dừng theo. Đặt trong `PlaybackService` kiểu
+`mediaPlayback` thì hệ thống giữ lại, đồng thời tự dựng khung điều khiển ở thanh
+thông báo — không phải tự vẽ. `MediaSession` đi kèm cũng khiến tai nghe bluetooth
+điều khiển được, hoàn toàn miễn phí.
 
-## Nếu video giật hoặc mất tiếng
+Đây cũng chính là vấn đề mà bản web phải giải bằng thủ thuật di chuyển thẻ DOM.
+Trên Android có sẵn cách làm đúng.
 
-Vào Cài đặt, bật **Chỉ dùng H.264**. Nhiều TV box đời rẻ chỉ có bộ giải mã phần cứng
-cho H.264; gặp VP9 hay AV1 thì phải giải mã bằng CPU nên không kịp, gặp Opus thì mất
-tiếng hẳn. Bật tuỳ chọn này thì server chỉ trả về H.264 kèm AAC.
+## Chưa kiểm chứng
 
-Vẫn giật thì hạ **Chất lượng tối đa** xuống 720p.
-
-## Còn thiếu
-
-- Lịch sử và tài khoản (server đã có API `/api/auth` và `/api/library`, chưa nối vào app)
-- Video đề xuất ở màn hình kết thúc
-- Tiếp tục xem từ chỗ đang dở
-- Phụ đề
-- Tự tìm server trong mạng LAN bằng mDNS, đỡ phải gõ IP
+Toàn bộ mã Android **chưa từng được biên dịch** — môi trường soạn thảo không có
+Android SDK. Lần build đầu gần như chắc chắn sẽ có lỗi vặt về import hoặc chữ ký
+API. Đây là khung có cấu trúc đầy đủ, không phải bản đã chạy được.

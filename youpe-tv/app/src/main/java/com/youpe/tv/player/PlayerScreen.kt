@@ -23,9 +23,10 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import androidx.tv.material3.Text
-import com.youpe.tv.data.Api
-import com.youpe.tv.data.Settings
-import com.youpe.tv.data.StreamsResponse
+import com.youpe.core.data.Api
+import com.youpe.core.data.Settings
+import com.youpe.core.data.StreamsResponse
+import com.youpe.core.player.StreamSource
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 

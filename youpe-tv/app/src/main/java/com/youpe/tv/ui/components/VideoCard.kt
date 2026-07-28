@@ -21,7 +21,7 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
-import com.youpe.tv.data.VideoItem
+import com.youpe.core.data.VideoItem
 import com.youpe.tv.ui.theme.Accent
 import com.youpe.tv.ui.theme.TextSub
 

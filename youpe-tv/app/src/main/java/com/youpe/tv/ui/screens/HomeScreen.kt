@@ -17,9 +17,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Button
 import androidx.tv.material3.Text
-import com.youpe.tv.data.Api
-import com.youpe.tv.data.TV_TOPICS
-import com.youpe.tv.data.VideoItem
+import com.youpe.core.data.Api
+import com.youpe.core.data.TOPICS
+import com.youpe.core.data.VideoItem
 import com.youpe.tv.ui.components.VideoCard
 import com.youpe.tv.ui.theme.Accent
 import com.youpe.tv.ui.theme.TextSub
@@ -53,7 +53,7 @@ fun HomeScreen(
         val api = Api(serverUrl)
         try {
             val result = withContext(Dispatchers.IO) {
-                TV_TOPICS.map { topic ->
+                TOPICS.map { topic ->
                     async {
                         val videos = runCatching { api.feed(topic.key).videos }.getOrDefault(emptyList())
                         topic.label to videos

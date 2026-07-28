@@ -3,7 +3,7 @@
 Đọc file này trước khi làm gì. Nó ghi lại **vì sao** mọi thứ ở trạng thái hiện tại,
 đặc biệt là những hướng đã thử và thất bại — để không mất công đi lại đường cũ.
 
-Cập nhật lần cuối: 27/07/2026
+Cập nhật lần cuối: 28/07/2026
 
 ---
 
@@ -15,7 +15,18 @@ Xem YouTube không quảng cáo, giao diện bám sát YouTube. Ba đầu ra:
 |---|---|---|
 | `youpe-web/` | Next.js 15 — vừa là giao diện web, vừa là server API cho mọi client | Chạy được |
 | `youpe-desktop/` | Vỏ Electron, tự khởi động server, không cần terminal | Chưa build thử |
-| `youpe-tv/` | App Android TV (Kotlin, Compose TV, Media3) | Chưa biên dịch thử |
+| `youpe-tv/` | Project Android, ba module — xem bên dưới | Chưa biên dịch thử |
+
+Trong `youpe-tv/` (tên thư mục giữ nguyên từ lúc đầu, giờ đã rộng hơn):
+
+| Module | Là gì |
+|---|---|
+| `:core` | Lõi dùng chung — gọi API, mô hình dữ liệu, Media3, phát nền, tải offline |
+| `:app` | Giao diện Android TV, điều khiển bằng remote |
+| `:mobile` | Giao diện điện thoại — chạm, Shorts vuốt dọc, cửa sổ nổi, tải offline |
+
+Hai giao diện tách riêng vì remote và ngón tay không dùng chung được bố cục, nhưng
+phần khó thì giống hệt nên nằm ở `:core`.
 
 `YMusic-...-master/` là source tham khảo ban đầu (app Android nghe nhạc), **đã bị gitignore**.
 Không dùng nữa, xem mục 3.
