@@ -6,6 +6,7 @@ import type { VideoItem } from '@/lib/types';
 import { VerifiedIcon, LikeIcon, DislikeIcon, ShareIcon } from './Icons';
 import SaveToPlaylist from './SaveToPlaylist';
 import * as store from '@/lib/storage';
+import { usePlayer } from './PlayerHost';
 
 /**
  * Trang video ngắn kiểu vuốt dọc.
@@ -50,6 +51,16 @@ export default function ShortsFeed() {
 
   const wrapRef = useRef<HTMLDivElement>(null);
   const seenRef = useRef<string[]>([]);
+
+  /*
+    Vào trang này là dừng hẳn trình phát chính, kể cả khi nó đang ở cửa sổ nổi.
+    Hai video phát cùng lúc thì không nghe được cái nào, và người vào Shorts rõ ràng
+    muốn xem Shorts chứ không phải nghe ngầm video cũ.
+  */
+  const { close } = usePlayer();
+  useEffect(() => {
+    close();
+  }, [close]);
 
   const fetchMore = useCallback(async () => {
     try {

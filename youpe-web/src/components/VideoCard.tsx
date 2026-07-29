@@ -6,7 +6,7 @@ import type { VideoItem } from '@/lib/types';
 import { formatDuration, viPublished } from '@/lib/format';
 import { VerifiedIcon } from './Icons';
 import {
-  cancelPrefetch, getPrefetchState, onPrefetchChange, prefetchIdle, prefetchNow,
+  cancelPrefetch, getPrefetchState, onPrefetchChange, prefetchNow,
   prefetchOnHover, type PrefetchState,
 } from '@/lib/prefetch';
 import { onProgressChange, progressRatio } from '@/lib/progress';
@@ -48,6 +48,15 @@ export function Thumb({ v, hovered = false }: { v: VideoItem; hovered?: boolean 
 
     let alive = true;
     const timer = setTimeout(async () => {
+      /*
+        Chỉ xem trước khi luồng **đã nằm sẵn trong cache**.
+
+        Chưa có thì việc lấy luồng phải chờ yt-dlp chạy, mất vài giây — người dùng rê
+        chuột rồi bỏ đi từ lâu, mà server thì đã tốn một lượt trích xuất cho một video
+        chẳng ai xem. Trạng thái nạp trước cho biết chính xác điều đó.
+      */
+      if (getPrefetchState(v.id) !== 'ready') return;
+
       claimPreview(v.id);
       const url = preview ?? (await getPreviewUrl(v.id));
       // rê sang card khác trong lúc chờ thì bỏ
@@ -161,9 +170,12 @@ export default function VideoCard({
    * Chờ rê chuột thì thường không kịp: trích xuất mất vài giây, mà người ta
    * rê rồi bấm trong chưa tới một giây.
    */
-  useEffect(() => {
-    if (index < 4) prefetchIdle(v.id, 1200 + index * 400);
-  }, [v.id, index]);
+  /*
+    Trước đây 4 thẻ đầu tự nạp trước ngay khi mở trang. Bỏ đi: mỗi lần nạp là một lần
+    server chạy yt-dlp, bốn lần cùng lúc thì chúng tranh băng thông và CPU với chính
+    video đang phát — đó là nguồn gốc của những cú giật vô cớ. Nạp trước giờ chỉ xảy
+    ra khi người dùng thật sự tỏ ý muốn xem: rê chuột hoặc nhấn.
+  */
 
   const [hovered, setHovered] = useState(false);
 

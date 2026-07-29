@@ -589,8 +589,27 @@ export default function Player({
     onVolume();
     onRate();
 
+    /*
+      Vòng canh gác mỗi giây, làm hai việc.
+
+      Sửa lệch thì dễ hiểu. Việc thứ hai quan trọng hơn: **cho thẻ tiếng chạy lại nếu
+      nó bị dừng oan**. Ở chế độ hai luồng, cửa sổ nổi chỉ mang theo thẻ `<video>` —
+      thẻ `<audio>` ở lại trong trang. Khi trang bị ẩn (chuyển tab, rời trang xem),
+      trình duyệt có quyền dừng media của trang ẩn, và thế là hình vẫn chạy trong cửa
+      sổ nổi mà mất sạch tiếng.
+
+      Không thể bắt bằng sự kiện vì trình duyệt dừng lúc nào là tuỳ nó, nên phải canh.
+    */
     const timer = setInterval(() => {
-      if (v.paused || a.readyState < 2) return;
+      if (v.paused) return;
+
+      if (a.paused && a.src) {
+        a.currentTime = v.currentTime;
+        a.play().catch(() => {});
+        return;
+      }
+
+      if (a.readyState < 2) return;
       if (Math.abs(a.currentTime - v.currentTime) > MAX_DRIFT) a.currentTime = v.currentTime;
     }, 1000);
 

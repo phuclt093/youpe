@@ -142,6 +142,12 @@ export default function PlayerHost({ children }: { children: React.ReactNode }) 
   const pipWinRef = useRef<Window | null>(null);
   /** Người dùng tự bấm mở cửa sổ nổi thì giữ nguyên ý muốn đó khi quay lại trang xem */
   const userChose = useRef(false);
+  /**
+   * Chính app đang đóng cửa sổ nổi, đừng nhầm thành người dùng bấm "Back to tab".
+   * Không có cờ này thì vào trang Shorts (nơi trình phát bị dừng) sẽ bị đá ngược
+   * về trang xem ngay lập tức.
+   */
+  const closingSelf = useRef(false);
 
   /* ---------- tạo thẻ chứa, một lần duy nhất ---------- */
   useEffect(() => {
@@ -208,6 +214,8 @@ export default function PlayerHost({ children }: { children: React.ReactNode }) 
     if (isFirst || !id || !host) return;
     if (!document.pictureInPictureElement) return;
 
+    closingSelf.current = true;
+    setTimeout(() => (closingSelf.current = false), 500);
     document.exitPictureInPicture().catch(() => {});
 
     // Chờ thẻ video mới có dữ liệu rồi mới đưa vào cửa sổ nổi. Bỏ cuộc sau 5 giây:
@@ -320,11 +328,89 @@ export default function PlayerHost({ children }: { children: React.ReactNode }) 
   }, [host, current]);
 
   const closePip = useCallback(() => {
+    closingSelf.current = true;
     pipWinRef.current?.close();
     pipWinRef.current = null;
     userChose.current = false;
     setMode('full');
+    setTimeout(() => (closingSelf.current = false), 500);
   }, []);
+
+  /* ---------- nút điều khiển trong cửa sổ nổi của hệ điều hành ---------- */
+
+  /**
+   * Cửa sổ nổi thường của trình duyệt **không tự có nút gì ngoài phát/dừng**. Muốn có
+   * nút tua và chuyển video thì phải khai báo qua Media Session — Chromium chỉ vẽ nút
+   * nào mà trang đã đăng ký xử lý.
+   *
+   * Cùng lúc đó, khai báo tên video và ảnh bìa để thanh thông báo của hệ điều hành,
+   * màn hình khoá và tai nghe bluetooth đều hiện đúng thông tin.
+   */
+  useEffect(() => {
+    const ms = navigator.mediaSession;
+    if (!ms || !current) return;
+
+    ms.metadata = new MediaMetadata({
+      title: current.title,
+      artist: current.channelName,
+      artwork: current.poster ? [{ src: current.poster, sizes: '480x360' }] : [],
+    });
+
+    const nextId = current.related[0]?.id;
+
+    const handlers: [MediaSessionAction, (() => void) | null][] = [
+      ['play', () => apiRef.current?.togglePlay()],
+      ['pause', () => apiRef.current?.togglePlay()],
+      ['seekbackward', () => apiRef.current?.seekBy(-10)],
+      ['seekforward', () => apiRef.current?.seekBy(10)],
+      // Không có "video trước" theo nghĩa danh sách phát, nên nút lùi dùng để tua.
+      // Có nút mà bấm không ra gì thì tệ hơn là không có nút.
+      ['previoustrack', () => apiRef.current?.seekBy(-10)],
+      ['nexttrack', nextId ? () => router.push(`/watch?v=${nextId}`) : null],
+    ];
+
+    for (const [action, fn] of handlers) {
+      try {
+        ms.setActionHandler(action, fn);
+      } catch {
+        /* trình duyệt không biết hành động này */
+      }
+    }
+
+    return () => {
+      for (const [action] of handlers) {
+        try {
+          ms.setActionHandler(action, null);
+        } catch {
+          /* bỏ qua */
+        }
+      }
+    };
+  }, [current, router]);
+
+  /* ---------- thoát cửa sổ nổi thì quay về đúng video ---------- */
+
+  /**
+   * Nút "Back to tab" của Chromium chỉ đưa cửa sổ app lên trước rồi thoát cửa sổ nổi —
+   * nó **không biết** app đang ở trang nào. Đang lướt trang chủ thì bấm xong vẫn ở
+   * trang chủ, còn video thì vừa bị lấy khỏi cửa sổ nổi nên biến mất.
+   *
+   * Nên tự điều hướng về trang xem. Chỉ làm khi đang không ở trang xem, để bấm thoát
+   * ngay trên trang xem không gây ra một lần chuyển trang thừa.
+   */
+  useEffect(() => {
+    const onLeave = () => {
+      if (closingSelf.current) return;
+
+      const id = current?.videoId;
+      if (!id) return;
+      if (window.location.pathname === '/watch') return;
+      router.push(`/watch?v=${id}`);
+    };
+
+    document.addEventListener('leavepictureinpicture', onLeave, true);
+    return () => document.removeEventListener('leavepictureinpicture', onLeave, true);
+  }, [current, router]);
 
   /* ---------- Esc trong cửa sổ nổi thì đóng ---------- */
   useEffect(() => {
@@ -368,6 +454,8 @@ export default function PlayerHost({ children }: { children: React.ReactNode }) 
   }, []);
 
   const close = useCallback(() => {
+    closingSelf.current = true;
+    setTimeout(() => (closingSelf.current = false), 500);
     pipWinRef.current?.close();
     pipWinRef.current = null;
     userChose.current = false;
