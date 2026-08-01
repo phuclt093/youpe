@@ -48,6 +48,19 @@ adb install -r mobile/build/outputs/apk/release/mobile-release.apk
 TV box thường không có trình duyệt file tiện dụng — cách gọn nhất là dùng `adb connect`
 qua mạng LAN sau khi bật gỡ lỗi USB trong phần Tuỳ chọn nhà phát triển.
 
+## Bản TV box có gì
+
+- Menu dọc bám mép trái, bung ra khi tiêu điểm chạm — kiểu chuẩn của Android TV
+- Trang chủ nạp **theo đợt bốn hàng**, không bắn hết hơn hai mươi chủ đề cùng lúc
+- Đang xem bấm phím **Xuống** thì hiện hàng video liên quan, chọn là xem tiếp
+- Hết video thì đếm ngược 8 giây rồi tự sang video kế; bấm phím bất kỳ để ở lại
+- Đăng nhập và xem Đã xem / Xem sau / Đã thích đồng bộ từ máy tính
+
+Mặc định lần chạy đầu là **H.264 và trần 720p**. Đây là chủ ý cho box giá rẻ: chip
+Amlogic và Allwinner đời cũ thường không có bộ giải mã phần cứng cho VP9 và AV1, gặp
+phải là ExoPlayer tụt xuống giải mã bằng CPU rồi giật từng khung. Máy khoẻ thì vào
+Cài đặt nâng lên, app sẽ tôn trọng lựa chọn đó và không ghi đè nữa.
+
 ## Bản điện thoại có gì
 
 - **Phát nền**: tắt màn hình vẫn nghe tiếp, điều khiển ở thanh thông báo và màn hình khoá

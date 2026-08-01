@@ -17,8 +17,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Button
 import androidx.tv.material3.Text
-import com.youpe.core.data.Api
 import com.youpe.core.data.TOPICS
+import com.youpe.tv.TvState
+import kotlinx.coroutines.flow.distinctUntilChanged
 import com.youpe.core.data.VideoItem
 import com.youpe.tv.ui.components.VideoCard
 import com.youpe.tv.ui.theme.Accent
@@ -46,28 +47,71 @@ fun HomeScreen(
     var error by remember { mutableStateOf<String?>(null) }
 
     val firstButton = remember { FocusRequester() }
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+
+    /*
+      Nạp theo đợt, mỗi đợt bốn hàng.
+
+      Bản đầu bắn hết hơn hai mươi chủ đề cùng lúc. Trên máy tính thì không sao, nhưng
+      TV box giá rẻ có RAM 1–2GB: hai mươi lời gọi mạng song song cộng với hàng trăm
+      ảnh thu nhỏ giải mã cùng lúc là đủ để hệ thống giết app. Mà người xem cũng chỉ
+      nhìn được ba bốn hàng đầu, phần còn lại nạp lúc họ cuộn tới cũng chưa muộn.
+    */
+    val batch = 4
+    var loaded by remember { mutableStateOf(0) }
+    var loadingMore by remember { mutableStateOf(false) }
+
+    suspend fun loadBatch(ctx: android.content.Context) {
+        if (loaded >= TOPICS.size || loadingMore) return
+        loadingMore = true
+
+        val slice = TOPICS.drop(loaded).take(batch)
+        val api = TvState.api(ctx)
+
+        val result = withContext(Dispatchers.IO) {
+            slice.map { topic ->
+                async {
+                    val videos = runCatching { api.feed(topic.key).videos }
+                        .getOrDefault(emptyList())
+                    topic.label to videos
+                }
+            }.awaitAll()
+        }
+
+        rows = rows + result.filter { it.second.isNotEmpty() }
+        loaded += slice.size
+        loadingMore = false
+        loading = false
+
+        if (rows.isEmpty() && loaded >= TOPICS.size) {
+            error = "Server không trả về video nào"
+        }
+    }
+
+    val ctx = LocalContext.current
 
     LaunchedEffect(serverUrl) {
         loading = true
         error = null
-        val api = Api(serverUrl)
-        try {
-            val result = withContext(Dispatchers.IO) {
-                TOPICS.map { topic ->
-                    async {
-                        val videos = runCatching { api.feed(topic.key).videos }.getOrDefault(emptyList())
-                        topic.label to videos
-                    }
-                }.awaitAll()
+        rows = emptyList()
+        loaded = 0
+
+        runCatching { loadBatch(ctx) }
+            .onFailure {
+                error = "Không gọi được server: ${it.message}"
+                loading = false
             }
-            rows = result.filter { it.second.isNotEmpty() }
-            if (rows.isEmpty()) error = "Server không trả về video nào"
-        } catch (e: Throwable) {
-            error = "Không gọi được server: ${e.message}"
-        } finally {
-            loading = false
-            api.close()
-        }
+    }
+
+    // cuộn gần hết thì nạp đợt tiếp
+    LaunchedEffect(listState, rows.size) {
+        snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0 }
+            .distinctUntilChanged()
+            .collect { last ->
+                if (rows.isNotEmpty() && last >= rows.size - 2) {
+                    runCatching { loadBatch(ctx) }
+                }
+            }
     }
 
     LaunchedEffect(Unit) { runCatching { firstButton.requestFocus() } }
@@ -110,6 +154,7 @@ fun HomeScreen(
             }
 
             else -> LazyColumn(
+                state = listState,
                 contentPadding = PaddingValues(bottom = 40.dp),
                 verticalArrangement = Arrangement.spacedBy(28.dp)
             ) {

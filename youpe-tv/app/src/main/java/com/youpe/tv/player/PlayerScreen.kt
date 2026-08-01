@@ -26,6 +26,9 @@ import androidx.tv.material3.Text
 import com.youpe.core.data.Api
 import com.youpe.core.data.Settings
 import com.youpe.core.data.StreamsResponse
+import com.youpe.core.data.VideoItem
+import com.youpe.tv.TvState
+import com.youpe.tv.ui.components.VideoCard
 import com.youpe.core.player.StreamSource
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
@@ -45,6 +48,7 @@ fun PlayerScreen(
     title: String,
     serverUrl: String,
     onExit: () -> Unit,
+    onPick: (VideoItem) -> Unit = {},
 ) {
     val ctx = LocalContext.current
     var status by remember { mutableStateOf("Đang lấy luồng phát…") }
@@ -52,6 +56,11 @@ fun PlayerScreen(
     var badge by remember { mutableStateOf("") }
     var showControls by remember { mutableStateOf(true) }
     var isPlaying by remember { mutableStateOf(false) }
+    var related by remember { mutableStateOf<List<VideoItem>>(emptyList()) }
+    /** Bấm phím Xuống thì mở hàng gợi ý — trên TV không có chỗ nào khác để đặt nó */
+    var showRelated by remember { mutableStateOf(false) }
+    var ended by remember { mutableStateOf(false) }
+    var countdown by remember { mutableStateOf(0) }
 
     val focus = remember { FocusRequester() }
 
@@ -71,6 +80,10 @@ fun PlayerScreen(
 
             override fun onPlayerError(error: PlaybackException) {
                 errorText = "Lỗi phát: ${error.errorCodeName}\n${error.message ?: ""}"
+            }
+
+            override fun onPlaybackStateChanged(state: Int) {
+                ended = state == Player.STATE_ENDED
             }
         }
         exo.addListener(listener)
@@ -115,6 +128,31 @@ fun PlayerScreen(
         }
     }
 
+    // lấy gợi ý song song với việc phát, không chặn gì cả
+    LaunchedEffect(videoId) {
+        related = runCatching { TvState.api(ctx).related(videoId).videos }
+            .getOrDefault(emptyList())
+    }
+
+    /*
+      Hết video thì đếm ngược rồi sang video kế.
+      Bấm phím bất kỳ là huỷ — người xem còn muốn ngồi lại thì đừng ép họ.
+    */
+    LaunchedEffect(ended, related) {
+        val next = related.firstOrNull()
+        if (!ended || next == null) {
+            countdown = 0
+            return@LaunchedEffect
+        }
+
+        countdown = 8
+        while (countdown > 0) {
+            delay(1000)
+            countdown -= 1
+        }
+        onPick(next)
+    }
+
     // thanh điều khiển tự ẩn sau 3 giây khi đang phát
     LaunchedEffect(showControls, isPlaying) {
         if (showControls && isPlaying) {
@@ -135,7 +173,16 @@ fun PlayerScreen(
                 if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
                 showControls = true
 
+                // đang đếm ngược mà bấm gì đó nghĩa là muốn ở lại
+                if (countdown > 0) {
+                    countdown = 0
+                    ended = false
+                }
+
                 when (event.key) {
+                    Key.DirectionDown -> { showRelated = related.isNotEmpty(); true }
+                    Key.DirectionUp -> { showRelated = false; true }
+
                     Key.DirectionCenter, Key.Enter, Key.Spacebar, Key.MediaPlayPause -> {
                         if (exo.isPlaying) exo.pause() else exo.play()
                         true
@@ -144,7 +191,10 @@ fun PlayerScreen(
                     Key.DirectionLeft, Key.MediaRewind -> { exo.seekBack(); true }
                     Key.MediaPlay -> { exo.play(); true }
                     Key.MediaPause -> { exo.pause(); true }
-                    Key.Back -> { onExit(); true }
+                    Key.Back -> {
+                        if (showRelated) showRelated = false else onExit()
+                        true
+                    }
                     else -> false
                 }
             }
@@ -195,7 +245,58 @@ fun PlayerScreen(
             }
         }
 
-        if (showControls) {
+        if (countdown > 0) {
+            Column(
+                Modifier
+                    .align(Alignment.Center)
+                    .background(Color(0xDD000000), RoundedCornerShape(12.dp))
+                    .padding(32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text("Video kế tiếp sau ${countdown}s", color = Color.White, fontSize = 20.sp)
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    related.firstOrNull()?.title.orEmpty(),
+                    color = Color(0xFFAAAAAA),
+                    fontSize = 15.sp,
+                )
+                Spacer(Modifier.height(12.dp))
+                Text("Bấm phím bất kỳ để ở lại", color = Color(0xFF888888), fontSize = 13.sp)
+            }
+        }
+
+        /*
+          Hàng gợi ý trượt lên từ đáy khi bấm phím Xuống.
+          Đặt đè lên video chứ không đẩy video co lại: TV box yếu, đổi kích thước
+          khung hình giữa chừng là một lần dựng lại bộ giải mã, hình sẽ khựng.
+        */
+        if (showRelated) {
+            Column(
+                Modifier
+                    .align(Alignment.BottomStart)
+                    .fillMaxWidth()
+                    .background(Color(0xEE000000))
+                    .padding(vertical = 20.dp),
+            ) {
+                Text(
+                    "Video liên quan",
+                    color = Color.White,
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.padding(start = 40.dp, bottom = 12.dp),
+                )
+                androidx.compose.foundation.lazy.LazyRow(
+                    contentPadding = PaddingValues(horizontal = 40.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    androidx.compose.foundation.lazy.items(related) { v ->
+                        VideoCard(item = v, onClick = { onPick(v) }, width = 220)
+                    }
+                }
+            }
+        }
+
+        if (showControls && !showRelated) {
             Column(
                 Modifier
                     .align(Alignment.BottomStart)
@@ -206,7 +307,7 @@ fun PlayerScreen(
                 Text(title, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Medium)
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    "OK phát/dừng · Trái Phải tua 10 giây · Back thoát",
+                    "OK phát/dừng · Trái Phải tua 10 giây · Xuống xem gợi ý · Back thoát",
                     color = Color(0xFFAAAAAA),
                     fontSize = 13.sp
                 )
