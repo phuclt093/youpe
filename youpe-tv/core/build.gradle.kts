@@ -27,6 +27,7 @@ dependencies {
     api(libs.androidx.datastore.preferences)
 
     api(libs.media3.common)
+    api(libs.media3.ui)
     api(libs.media3.exoplayer)
     api(libs.media3.exoplayer.dash)
     api(libs.media3.exoplayer.hls)

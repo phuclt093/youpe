@@ -27,6 +27,17 @@ Trong Start Menu (thu muc youpe):
   youpe - Build ban web       Build lai sau khi sua code
 
 
+BUILD APP CHO ANDROID
+---------------------
+Bam dup file o thu muc goc project:
+
+  BUILD-TV.bat       Ra file APK cho Android TV box
+  BUILD-MOBILE.bat   Ra file APK cho dien thoai
+
+Lan dau mat 5-15 phut vi Gradle phai tai thu vien.
+Huong dan chi tiet cach cai len TV box: doc file  docs\ANDROID.md
+
+
 DUNG HANG NGAY
 --------------
 Chi can bam dup shortcut "youpe".

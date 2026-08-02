@@ -1,0 +1,87 @@
+{
+  // Chép file này thành .vscode/tasks.json ở thư mục gốc của project.
+  // Rồi bấm Ctrl+Shift+P > "Tasks: Run Task" và chọn việc cần chạy.
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "web: chạy dev",
+      "detail": "Khởi động youpe-web ở http://localhost:3000 — mọi thứ khác đều cần nó",
+      "type": "shell",
+      "command": "npm run dev",
+      "options": { "cwd": "${workspaceFolder}/youpe-web" },
+      "group": { "kind": "build", "isDefault": true },
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "desktop: chạy dev",
+      "detail": "Mở app Electron, tự khởi động youpe-web nếu chưa chạy",
+      "type": "shell",
+      "command": "npm run dev",
+      "options": { "cwd": "${workspaceFolder}/youpe-desktop" },
+      "isBackground": true,
+      "problemMatcher": []
+    },
+
+    {
+      "label": "TV: build APK",
+      "detail": "Ra file app-release.apk cho Android TV box",
+      "type": "shell",
+      "command": "./gradlew :app:assembleRelease",
+      "windows": { "command": ".\\gradlew.bat :app:assembleRelease" },
+      "options": { "cwd": "${workspaceFolder}/youpe-tv" },
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "TV: build và cài thẳng lên box",
+      "detail": "Cần adb đã kết nối tới TV box — xem docs/ANDROID.md",
+      "type": "shell",
+      "command": "./gradlew :app:installDebug",
+      "windows": { "command": ".\\gradlew.bat :app:installDebug" },
+      "options": { "cwd": "${workspaceFolder}/youpe-tv" },
+      "problemMatcher": []
+    },
+
+    {
+      "label": "Điện thoại: build APK",
+      "type": "shell",
+      "command": "./gradlew :mobile:assembleRelease",
+      "windows": { "command": ".\\gradlew.bat :mobile:assembleRelease" },
+      "options": { "cwd": "${workspaceFolder}/youpe-tv" },
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "Điện thoại: build và cài thẳng lên máy",
+      "type": "shell",
+      "command": "./gradlew :mobile:installDebug",
+      "windows": { "command": ".\\gradlew.bat :mobile:installDebug" },
+      "options": { "cwd": "${workspaceFolder}/youpe-tv" },
+      "problemMatcher": []
+    },
+
+    {
+      "label": "Android: dọn sạch bản build",
+      "detail": "Chạy khi build lỗi lạ mà không rõ vì sao",
+      "type": "shell",
+      "command": "./gradlew clean",
+      "windows": { "command": ".\\gradlew.bat clean" },
+      "options": { "cwd": "${workspaceFolder}/youpe-tv" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Android: xem log khi app văng",
+      "type": "shell",
+      "command": "adb logcat *:W | findstr /i youpe",
+      "problemMatcher": []
+    },
+    {
+      "label": "Android: kết nối TV box qua wifi",
+      "detail": "Sửa địa chỉ IP cho đúng box của bạn trước khi chạy",
+      "type": "shell",
+      "command": "adb connect 192.168.1.100:5555",
+      "problemMatcher": []
+    }
+  ]
+}

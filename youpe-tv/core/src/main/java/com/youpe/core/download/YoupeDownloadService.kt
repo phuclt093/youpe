@@ -9,7 +9,7 @@ import androidx.media3.exoplayer.offline.DownloadManager
 import androidx.media3.exoplayer.offline.DownloadService
 import androidx.media3.exoplayer.scheduler.Requirements
 import androidx.media3.exoplayer.scheduler.Scheduler
-import androidx.media3.ui.R as Media3UiR
+import com.youpe.core.R
 
 /**
  * Dịch vụ chạy nền cho việc tải video.
@@ -23,7 +23,7 @@ class YoupeDownloadService : DownloadService(
     FOREGROUND_ID,
     DEFAULT_FOREGROUND_NOTIFICATION_UPDATE_INTERVAL,
     CHANNEL_ID,
-    Media3UiR.string.exo_download_notification_channel_name,
+    R.string.exo_download_notification_channel_name,
     /* channelDescriptionResourceId = */ 0,
 ) {
 
@@ -50,7 +50,7 @@ class YoupeDownloadService : DownloadService(
         NotificationUtil.createNotificationChannel(
             this,
             CHANNEL_ID,
-            Media3UiR.string.exo_download_notification_channel_name,
+            R.string.exo_download_notification_channel_name,
             0,
             NotificationUtil.IMPORTANCE_LOW,
         )
