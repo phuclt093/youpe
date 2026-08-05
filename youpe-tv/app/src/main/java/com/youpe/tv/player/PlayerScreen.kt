@@ -3,6 +3,8 @@ package com.youpe.tv.player
 import androidx.annotation.OptIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
@@ -285,11 +287,11 @@ fun PlayerScreen(
                     fontWeight = FontWeight.Medium,
                     modifier = Modifier.padding(start = 40.dp, bottom = 12.dp),
                 )
-                androidx.compose.foundation.lazy.LazyRow(
+                LazyRow(
                     contentPadding = PaddingValues(horizontal = 40.dp),
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
-                    androidx.compose.foundation.lazy.items(related) { v ->
+                    items(related) { v ->
                         VideoCard(item = v, onClick = { onPick(v) }, width = 220)
                     }
                 }

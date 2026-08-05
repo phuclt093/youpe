@@ -38,6 +38,17 @@ Lan dau mat 5-15 phut vi Gradle phai tai thu vien.
 Huong dan chi tiet cach cai len TV box: doc file  docs\ANDROID.md
 
 
+BAN CHO LINUX MINT / UBUNTU
+---------------------------
+Chep ca thu muc project sang may Linux roi chay:
+
+  chmod +x BUILD-LINUX.sh
+  ./BUILD-LINUX.sh
+
+Ra file .deb va .AppImage trong youpe-desktop/release
+KHONG build duoc tu Windows sang Linux - doc  docs\LINUX.md  de biet vi sao.
+
+
 DUNG HANG NGAY
 --------------
 Chi can bam dup shortcut "youpe".

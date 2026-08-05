@@ -14,7 +14,7 @@ Xem YouTube không quảng cáo, giao diện bám sát YouTube. Ba đầu ra:
 | Thư mục | Là gì | Trạng thái |
 |---|---|---|
 | `youpe-web/` | Next.js 15 — vừa là giao diện web, vừa là server API cho mọi client | Chạy được |
-| `youpe-desktop/` | Vỏ Electron, tự khởi động server, không cần terminal | Chưa build thử |
+| `youpe-desktop/` | Vỏ Electron cho Windows, macOS và Linux (deb + AppImage) | Windows chạy được; Linux chưa build thử |
 | `youpe-tv/` | Project Android, ba module — xem bên dưới | Chưa biên dịch thử |
 
 Trong `youpe-tv/` (tên thư mục giữ nguyên từ lúc đầu, giờ đã rộng hơn):
