@@ -31,6 +31,18 @@ echo
 echo "  Lan dau mat khoang 5-15 phut tuy toc do mang."
 echo
 
+# Tự động nạp NVM / Node nếu NVM được cài đặt trong máy
+if [ -s "$HOME/.nvm/nvm.sh" ]; then
+  export NVM_DIR="$HOME/.nvm"
+  \. "$NVM_DIR/nvm.sh" 2>/dev/null || true
+fi
+if ! command -v node >/dev/null 2>&1; then
+  NVM_NODE="$(ls -d $HOME/.nvm/versions/node/v*/bin 2>/dev/null | tail -n 1 || true)"
+  if [ -n "$NVM_NODE" ]; then
+    export PATH="$NVM_NODE:$PATH"
+  fi
+fi
+
 # ---------- 1. Node ----------
 command -v node >/dev/null 2>&1 || die \
 "Chua cai Node.js.

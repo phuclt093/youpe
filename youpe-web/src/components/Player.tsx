@@ -464,7 +464,17 @@ export default function Player({
     const onRate = () => setSpeed(v.playbackRate);
     const onErr = () => {
       const code = v.error?.code;
-      if (code) setError(`Thẻ video báo lỗi ${code}: ${v.error?.message || 'không rõ'}`);
+      if (code) {
+        if ((code === 4 || code === 3) && mode === 'dual' && dualList && dualList.length > 0) {
+          console.warn(`[Player] HTMLVideoElement error ${code}, trying next stream format...`);
+          const curIndex = tracks.findIndex((t) => t.active);
+          if (curIndex >= 0 && curIndex + 1 < dualList.length) {
+            attachDual(dualList, dualAudio, curIndex + 1);
+            return;
+          }
+        }
+        setError(`Thẻ video báo lỗi ${code}: ${v.error?.message || 'không rõ'}`);
+      }
     };
 
     const events: [string, EventListener][] = [

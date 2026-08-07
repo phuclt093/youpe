@@ -60,10 +60,15 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       label: f.height ? `${f.height}p${f.fps && f.fps > 31 ? Math.round(f.fps) : ''}` : '',
     });
 
-    // ưu tiên mp4/h264 cho video (tương thích rộng nhất), m4a cho audio
+    // Ưu tiên WebM/VP9 mặc định (tương thích 100% với Electron/Chromium trên Linux),
+    // ngoại trừ khi yêu cầu đích danh H.264 (?codec=h264 hoặc ?tv=1)
     const prefer = (a: PipedFormat, b: PipedFormat) => {
-      const score = (f: PipedFormat) =>
-        (f.mimeType.includes('mp4') ? 2 : 0) + (f.codecs.startsWith('avc') ? 1 : 0);
+      const score = (f: PipedFormat) => {
+        if (wantH264) {
+          return (f.mimeType.includes('mp4') ? 2 : 0) + (f.codecs.startsWith('avc') ? 1 : 0);
+        }
+        return (f.mimeType.includes('webm') ? 2 : 0) + (f.codecs.startsWith('vp') ? 1 : 0);
+      };
       return score(b) - score(a);
     };
 

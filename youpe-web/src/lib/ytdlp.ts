@@ -58,8 +58,11 @@ function ytdlpArgs(id: string, strategy: Strategy): string[] {
     '--extractor-retries', '1',
   ];
 
-  // Lượt chắc ăn: quét mọi player client. Chậm hơn nên chỉ dùng khi cần.
-  if (strategy === 'all') args.push('--extractor-args', 'youtube:player_client=all');
+  if (strategy === 'all') {
+    args.push('--extractor-args', 'youtube:player_client=all');
+  } else {
+    args.push('--extractor-args', 'youtube:player_client=ios,android,web');
+  }
 
   const cookies = process.env.YTDLP_COOKIES_FROM_BROWSER?.trim();
   if (cookies) args.push('--cookies-from-browser', cookies);
@@ -79,7 +82,7 @@ function ytdlpArgs(id: string, strategy: Strategy): string[] {
 
 /** Những lỗi mà việc đổi player client có cơ may cứu được */
 const RETRYABLE =
-  /(not available|unavailable|sign in|confirm you'?re not a bot|failed to extract|no video formats|player response)/i;
+  /(not available|unavailable|sign in|confirm you'?re not a bot|failed to extract|no video formats|player response|error code)/i;
 
 /** Dịch lỗi thô của yt-dlp sang câu tiếng Việt nói rõ phải làm gì */
 export function explainYtdlpError(raw: string): string {

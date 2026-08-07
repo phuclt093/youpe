@@ -4,6 +4,7 @@
   "description": "youpe — xem video không quảng cáo",
   "main": "main.js",
   "author": "youpe",
+  "homepage": "https://localhost",
   "license": "MIT",
   "private": true,
   "scripts": {

@@ -87,6 +87,32 @@ function ytdlpPath() {
   return fs.existsSync(bundled) ? bundled : name; // không có bản gói kèm thì dùng PATH
 }
 
+/**
+ * Cookie cho yt-dlp, để giảm lỗi "Please sign in" / "confirm you're not a bot".
+ *
+ * Ưu tiên theo thứ tự:
+ *   1. Biến môi trường người dùng tự set sẵn (YTDLP_COOKIES_FILE /
+ *      YTDLP_COOKIES_FROM_BROWSER) — tôn trọng, không ghi đè.
+ *   2. File cookies.txt do người dùng tự đặt vào YOUPE_DATA_DIR (bền qua
+ *      các lần update app, không nằm trong thư mục cài đặt).
+ *   3. Không có gì thì thôi, để server tự chạy không cookie như cũ.
+ *
+ * Cố tình KHÔNG tự động rút cookie từ trình duyệt (--cookies-from-browser)
+ * theo mặc định: Electron thường khoá sẵn profile Chrome đang mở, dễ lỗi
+ * "database is locked", nên để người dùng tự bật qua biến môi trường nếu
+ * họ hiểu rủi ro đó.
+ */
+function ytdlpCookieEnv() {
+  if (process.env.YTDLP_COOKIES_FILE || process.env.YTDLP_COOKIES_FROM_BROWSER) {
+    return {}; // người dùng đã tự cấu hình, không đụng vào
+  }
+  const cookieFile = path.join(userDataDir(), 'cookies.txt');
+  if (fs.existsSync(cookieFile)) {
+    return { YTDLP_COOKIES_FILE: cookieFile };
+  }
+  return {};
+}
+
 /* ---------------- server ---------------- */
 
 async function startServer() {
@@ -131,6 +157,7 @@ async function startServer() {
       HOSTNAME: '127.0.0.1',
       YOUPE_DATA_DIR: userDataDir(),
       YTDLP_PATH: ytdlpPath(),
+      ...ytdlpCookieEnv(),
     },
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
