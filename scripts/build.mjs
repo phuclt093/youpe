@@ -77,9 +77,26 @@ for (const [ten, dir] of [['youpe-web', web], ['youpe-desktop', desktop]]) {
 
 c.head('[3/5] Kiểm tra kiểu');
 
-const tsc = spawnSync('npx', ['tsc', '--noEmit'], { cwd: web, encoding: 'utf-8' });
+/*
+  `shell: true` là bắt buộc trên Windows.
+
+  Ở đó `npx` thật ra là `npx.cmd`, mà từ Node 18.20/20.12 trở đi Node không cho
+  spawn thẳng file `.cmd` nữa (vá lỗ hổng CVE-2024-27980). Không có cờ này thì
+  spawnSync trả về `status: null` kèm `error: ENOENT`, còn `stdout`/`stderr` đều
+  `undefined` — nên bước này in ra đúng chữ "undefined" rồi báo TypeScript hỏng,
+  trong khi mã nguồn chẳng có lỗi kiểu nào. Bẫy này chỉ lộ ra trên Windows.
+*/
+const tsc = spawnSync('npx', ['tsc', '--noEmit'], {
+  cwd: web,
+  encoding: 'utf-8',
+  shell: process.platform === 'win32',
+});
+
+if (tsc.error) {
+  c.die(`Không chạy được tsc: ${tsc.error.message}`);
+}
 if (tsc.status !== 0) {
-  console.error(tsc.stdout || tsc.stderr);
+  console.error(tsc.stdout || tsc.stderr || '(tsc không in ra gì)');
   c.die('TypeScript báo lỗi. Sửa xong rồi build lại — đóng gói lúc này chỉ tốn thời gian.');
 }
 c.ok('không có lỗi kiểu');

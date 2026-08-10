@@ -237,6 +237,18 @@ export default function Player({
   useEffect(() => {
     let dead = false;
 
+    /*
+      Phải giữ lại tham chiếu tới hai thẻ media ngay tại đây.
+
+      Đổi video là `key` đổi, React unmount cả trình phát. React gỡ ref của thẻ DOM ở
+      giai đoạn mutation, còn hàm dọn dẹp của effect chạy ở giai đoạn passive — tức là
+      sau đó. Nên trong hàm dọn dẹp, `videoRef.current` đã là `null`: mọi lệnh dừng
+      viết theo `videoRef.current?.pause()` đều rơi vào hư không, và thẻ video cũ mà
+      cửa sổ nổi đang giữ sẽ phát tiếp song song với video mới.
+    */
+    const vEl = videoRef.current;
+    const aEl = audioRef.current;
+
     // dọn sạch trạng thái của video trước
     setMode('dash');
     setDualList(null);
@@ -393,8 +405,8 @@ export default function Player({
       // Dừng trước đã, bất kể đang ở chế độ nào. Thẻ media có thể đang bị cửa sổ nổi
       // của trình duyệt giữ, lúc đó nó rời khỏi cây DOM nhưng **vẫn phát tiếp** —
       // không dừng thì video cũ chạy song song với video mới.
-      videoRef.current?.pause();
-      audioRef.current?.pause();
+      vEl?.pause();
+      aEl?.pause();
 
       if (p) {
         // shaka tự ngắt các request đang bay khi destroy
@@ -405,7 +417,7 @@ export default function Player({
       // Chế độ 2 luồng / luồng gộp: phải tự ngắt, nếu không thẻ media vẫn tải tiếp
       // luồng của video cũ sau khi đã chuyển sang video khác — vừa phí băng thông
       // vừa tranh chấp với luồng mới.
-      for (const el of [videoRef.current, audioRef.current]) {
+      for (const el of [vEl, aEl]) {
         if (!el || !el.getAttribute('src')) continue;
         el.removeAttribute('src');
         el.load(); // bắt buộc: chỉ xoá src thôi thì request vẫn chạy

@@ -533,25 +533,75 @@ chỗ khác; yt-dlp cũ thì vẫn phát video, chỉ kẹt 360p.
 
 ### Cấu hình Turso
 
-Tạo database miễn phí ở <https://turso.tech> (hoặc `turso db create youpe --location sin`),
-lấy URL và token, rồi:
+Database của dự án này: **`youpe`**, tài khoản `phuclt093`, vùng `aws-ap-northeast-1`.
+
+```
+TURSO_DATABASE_URL=libsql://youpe-phuclt093.aws-ap-northeast-1.turso.io
+```
+
+URL thì cố định và không phải bí mật, nên ghi thẳng ở đây được. **Token thì không** —
+nó là quyền đọc ghi toàn bộ database, mà file này nằm trong git và được đẩy lên
+GitHub. Lấy token bằng một trong hai cách:
 
 ```bash
-# lúc phát triển
+turso db tokens create youpe          # cấp token mới, cấp bao nhiêu lần cũng được
+cat ~/.config/youpe/data/youpe.env    # hoặc đọc lại từ máy đã cấu hình rồi
+```
+
+Có hai giá trị rồi thì điền vào **hai chỗ** — thiếu chỗ thứ hai là bản đóng gói
+không đồng bộ, xem mục 4.20:
+
+| Chỗ | Dùng cho | Windows | Linux |
+|---|---|---|---|
+| `.env.local` | `npm run dev` | `youpe-web\.env.local` | `youpe-web/.env.local` |
+| `youpe.env` | bản đã cài | `%APPDATA%\youpe\data\youpe.env` | `~/.config/youpe/data/youpe.env` |
+
+**Linux / macOS:**
+
+```bash
 cat >> youpe-web/.env.local <<'EOF'
-TURSO_DATABASE_URL=libsql://<tên>-<tài khoản>.turso.io
+TURSO_DATABASE_URL=libsql://youpe-phuclt093.aws-ap-northeast-1.turso.io
 TURSO_AUTH_TOKEN=ey...
 EOF
 
-# cho bản đóng gói — xem 4.20 để biết vì sao phải làm riêng
 mkdir -p ~/.config/youpe/data
-cp youpe-web/.env.local ~/.config/youpe/data/youpe.env
+grep '^TURSO_' youpe-web/.env.local > ~/.config/youpe/data/youpe.env
 ```
+
+**Windows — Command Prompt** (cái mở ra khi gõ `cmd`, dấu nhắc dạng `E:\...>`).
+Điền `.env.local` bằng tay theo mẫu ở trên, rồi:
+
+```cmd
+cd /d E:\Phuc\Projects\youpe
+mkdir "%APPDATA%\youpe\data" 2>nul
+findstr /b "TURSO_" youpe-web\.env.local > "%APPDATA%\youpe\data\youpe.env"
+type "%APPDATA%\youpe\data\youpe.env"
+```
+
+**Windows — PowerShell** (dấu nhắc dạng `PS E:\...>`), chạy ở thư mục gốc kho.
+Đừng dán khối này vào Command Prompt: `New-Item`, `Select-String` là lệnh của
+PowerShell, cmd sẽ báo `is not recognized as an internal or external command`.
+
+```powershell
+@'
+TURSO_DATABASE_URL=libsql://youpe-phuclt093.aws-ap-northeast-1.turso.io
+TURSO_AUTH_TOKEN=ey...
+'@ | Set-Content -Encoding ASCII youpe-web\.env.local
+
+$d = "$env:APPDATA\youpe\data"
+New-Item -ItemType Directory -Force -Path $d | Out-Null
+Select-String -Path youpe-web\.env.local -Pattern '^TURSO_' |
+  ForEach-Object { $_.Line } | Set-Content -Encoding ASCII "$d\youpe.env"
+```
+
+Dùng `-Encoding ASCII` chứ đừng `UTF8`: PowerShell 5.1 ghi kèm BOM, và BOM đứng
+trước `TURSO_DATABASE_URL` làm dòng đầu dễ bị đọc hụt.
 
 Không cần đặt `DB_DRIVER`; hễ thấy `TURSO_DATABASE_URL` là tự chuyển. Bảng dựng tự
 động lần chạy đầu. Xoá hai biến đi là quay về SQLite trên máy.
 
-Kiểm chứng: `npm run db:check`, rồi `turso db shell youpe "SELECT email FROM users"`.
+Kiểm chứng: `npm run check` (nói rõ thiếu chỗ nào), rồi `npm run db:check`, rồi
+`turso db shell youpe "SELECT email FROM users"`.
 
 ---
 
