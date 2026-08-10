@@ -38,9 +38,19 @@ export function Thumb({ v, hovered = false }: { v: VideoItem; hovered?: boolean 
   /**
    * Xem trước: rê chuột giữ đủ lâu mới lấy luồng và phát.
    * Chờ 700ms để lướt qua nhiều card không kích hoạt hàng loạt.
+   *
+   * Chỉ xem trước khi luồng **đã nằm sẵn trong cache của server**. Chưa có thì việc
+   * lấy luồng phải chờ yt-dlp chạy, mất vài giây — không nên tốn một lượt trích xuất
+   * chỉ vì con trỏ lướt ngang qua. Trạng thái nạp trước cho biết chính xác điều đó.
+   *
+   * `warm` nằm trong danh sách phụ thuộc là điểm mấu chốt: trước đây hết 700ms mà
+   * luồng chưa sẵn sàng thì hàm này bỏ cuộc luôn và không bao giờ thử lại, nên lần rê
+   * chuột đầu tiên gần như chẳng khi nào ra được đoạn xem trước — phải rê ra rồi rê
+   * vào lần nữa. Giờ nạp trước xong là hàm chạy lại và bắt đầu phát, miễn là con trỏ
+   * vẫn còn nằm trên thẻ.
    */
   useEffect(() => {
-    if (!hovered || v.isLive || !previewEnabled()) {
+    if (!hovered || v.isLive || !previewEnabled() || warm !== 'ready') {
       releasePreview(v.id);
       setPreviewOn(false);
       return;
@@ -48,15 +58,6 @@ export function Thumb({ v, hovered = false }: { v: VideoItem; hovered?: boolean 
 
     let alive = true;
     const timer = setTimeout(async () => {
-      /*
-        Chỉ xem trước khi luồng **đã nằm sẵn trong cache**.
-
-        Chưa có thì việc lấy luồng phải chờ yt-dlp chạy, mất vài giây — người dùng rê
-        chuột rồi bỏ đi từ lâu, mà server thì đã tốn một lượt trích xuất cho một video
-        chẳng ai xem. Trạng thái nạp trước cho biết chính xác điều đó.
-      */
-      if (getPrefetchState(v.id) !== 'ready') return;
-
       claimPreview(v.id);
       const url = preview ?? (await getPreviewUrl(v.id));
       // rê sang card khác trong lúc chờ thì bỏ
@@ -72,13 +73,17 @@ export function Thumb({ v, hovered = false }: { v: VideoItem; hovered?: boolean 
       releasePreview(v.id);
       setPreviewOn(false);
     };
-  }, [hovered, v.id, v.isLive, preview]);
+  }, [hovered, warm, v.id, v.isLive, preview]);
 
   // bắt đầu phát ngay khi thẻ video sẵn sàng
   useEffect(() => {
     const el = videoRef.current;
     if (!el || !previewOn) return;
-    el.currentTime = 0;
+    /*
+      Không đặt `currentTime = 0` ở đây. Thẻ vừa được dựng nên đã ở mốc 0 sẵn, mà
+      gán lúc chưa có metadata thì trình duyệt xếp hàng một lượt tua — thêm một
+      vòng gọi mạng nữa trước khi hình đầu tiên hiện ra.
+    */
     el.play().catch(() => {});
   }, [previewOn]);
 
@@ -107,7 +112,7 @@ export function Thumb({ v, hovered = false }: { v: VideoItem; hovered?: boolean 
           muted
           playsInline
           loop
-          preload="none"
+          preload="auto"
           disablePictureInPicture
           disableRemotePlayback
           controlsList="nodownload noplaybackrate noremoteplayback"

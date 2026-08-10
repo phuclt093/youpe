@@ -88,7 +88,7 @@ export default function PlaylistPage({ params }: { params: Promise<{ id: string 
             {data?.author.name && (
               <Link
                 href={data.author.id ? `/channel/${data.author.id}` : '#'}
-                className="mt-3 flex items-center gap-2 text-sm hover:text-white"
+                className="mt-3 flex items-center gap-2 text-sm hover:text-yt-text"
               >
                 {data.author.avatar && (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -105,7 +105,7 @@ export default function PlaylistPage({ params }: { params: Promise<{ id: string 
             {first && (
               <Link
                 href={`/watch?v=${first.id}`}
-                className="mt-4 flex w-full items-center justify-center gap-2 rounded-full bg-white px-4 py-2.5 text-sm font-medium text-black hover:bg-white/90"
+                className="mt-4 flex w-full items-center justify-center gap-2 rounded-full bg-yt-text px-4 py-2.5 text-sm font-medium text-yt-bg hover:bg-yt-text/90"
               >
                 <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor" aria-hidden>
                   <path d="M8 5v14l11-7z" />

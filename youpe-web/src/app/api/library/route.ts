@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
   const list = req.nextUrl.searchParams.get('list') ?? 'history';
   if (!LISTS.includes(list)) return NextResponse.json({ error: 'list không hợp lệ' }, { status: 400 });
 
-  return NextResponse.json({ items: libraryList(user.id, list) });
+  return NextResponse.json({ items: await libraryList(user.id, list) });
 }
 
 /** POST { list, video } — thêm hoặc cập nhật */
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
   if (!LISTS.includes(list) || !video?.id)
     return NextResponse.json({ error: 'dữ liệu không hợp lệ' }, { status: 400 });
 
-  libraryUpsert(user.id, list, video);
+  await libraryUpsert(user.id, list, video);
 
   return NextResponse.json({ ok: true });
 }
@@ -43,8 +43,8 @@ export async function DELETE(req: NextRequest) {
   if (!list || !LISTS.includes(list))
     return NextResponse.json({ error: 'list không hợp lệ' }, { status: 400 });
 
-  if (videoId) libraryRemove(user.id, list, videoId);
-  else libraryClear(user.id, list);
+  if (videoId) await libraryRemove(user.id, list, videoId);
+  else await libraryClear(user.id, list);
 
   return NextResponse.json({ ok: true });
 }

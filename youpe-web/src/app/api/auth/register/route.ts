@@ -15,11 +15,11 @@ export async function POST(req: NextRequest) {
     if (!name.trim()) errors.push('Cần nhập tên hiển thị');
     if (errors.length) return NextResponse.json({ error: errors[0] }, { status: 400 });
 
-    if (findUserByEmail(email))
+    if (await findUserByEmail(email))
       return NextResponse.json({ error: 'Email này đã được dùng' }, { status: 409 });
 
-    const user = createUser(email, name.trim(), password);
-    const { token, expiresAt } = createSession(user.id);
+    const user = await createUser(email, name.trim(), password);
+    const { token, expiresAt } = await createSession(user.id);
 
     const res = NextResponse.json({ user });
     res.cookies.set(SESSION_COOKIE, token, sessionCookieOptions(expiresAt));

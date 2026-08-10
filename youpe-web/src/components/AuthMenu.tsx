@@ -196,7 +196,7 @@ function AuthModal({ onClose }: { onClose: () => void }) {
           <button
             type="submit"
             disabled={busy}
-            className="w-full rounded-full bg-yt-text py-2.5 text-sm font-medium text-yt-bg hover:bg-white/90 disabled:opacity-60"
+            className="w-full rounded-full bg-yt-text py-2.5 text-sm font-medium text-yt-bg hover:bg-yt-text/90 disabled:opacity-60"
           >
             {busy ? 'Đang xử lý…' : mode === 'login' ? 'Đăng nhập' : 'Đăng ký'}
           </button>

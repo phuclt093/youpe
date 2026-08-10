@@ -95,7 +95,7 @@ export default function SaveToPlaylist({
               />
               <button
                 onClick={create}
-                className="rounded-lg bg-yt-text px-3 py-2 text-sm font-medium text-yt-bg hover:bg-white/90"
+                className="rounded-lg bg-yt-text px-3 py-2 text-sm font-medium text-yt-bg hover:bg-yt-text/90"
               >
                 Tạo
               </button>

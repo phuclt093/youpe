@@ -49,7 +49,7 @@ export default function ResultsPage() {
             key={f.key}
             onClick={() => setFilter(f.key)}
             className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium ${
-              filter === f.key ? 'bg-yt-text text-yt-bg' : 'bg-yt-chip hover:bg-[#3f3f3f]'
+              filter === f.key ? 'bg-yt-text text-yt-bg' : 'bg-yt-chip hover:bg-yt-chip2'
             }`}
           >
             {f.label}

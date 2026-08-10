@@ -156,6 +156,22 @@ export function deleteSession(token: string) {
   db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
 }
 
+/** Phiên kèm người dùng trong một câu — xem ghi chú ở `db.ts` */
+export function findUserBySession(
+  token: string
+): { user: UserRow; expiresAt: number } | undefined {
+  const r = db
+    .prepare(
+      `SELECT u.*, s.expires_at AS session_expires_at
+       FROM sessions s JOIN users u ON u.id = s.user_id
+       WHERE s.token = ?`
+    )
+    .get(token);
+
+  const user = toUser(r);
+  return user && { user, expiresAt: r.session_expires_at };
+}
+
 export function pruneSessions() {
   db.prepare('DELETE FROM sessions WHERE expires_at < ?').run(Date.now());
 }

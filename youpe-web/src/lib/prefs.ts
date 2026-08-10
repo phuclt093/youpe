@@ -13,6 +13,12 @@ export type Prefs = {
   miniOnLeave: boolean;
   /** Rê chuột lên thumbnail thì phát thử một đoạn không tiếng */
   hoverPreview: boolean;
+  /**
+   * Đang xem ở cửa sổ nổi (PiP kiểu trình duyệt, dùng cho vỏ desktop) mà bấm sang
+   * video khác thì video mới có tự mở lại trong cửa sổ nổi hay không. Tắt đi thì
+   * video mới phát bình thường trên trang, cửa sổ nổi tự đóng.
+   */
+  keepPipOnVideoChange: boolean;
 };
 
 const DEFAULTS: Prefs = {
@@ -23,6 +29,7 @@ const DEFAULTS: Prefs = {
   playInBackground: true,
   miniOnLeave: true,
   hoverPreview: true,
+  keepPipOnVideoChange: true,
 };
 
 const KEYS: Record<keyof Prefs, string> = {
@@ -33,6 +40,7 @@ const KEYS: Record<keyof Prefs, string> = {
   playInBackground: 'youpe.playInBackground',
   miniOnLeave: 'youpe.miniOnLeave',
   hoverPreview: 'youpe.hoverPreview',
+  keepPipOnVideoChange: 'youpe.keepPipOnVideoChange',
 };
 
 const EVENT = 'youpe-prefs';
@@ -56,7 +64,22 @@ export function getPrefs(): Prefs {
     playInBackground: bool(KEYS.playInBackground, DEFAULTS.playInBackground),
     miniOnLeave: bool(KEYS.miniOnLeave, DEFAULTS.miniOnLeave),
     hoverPreview: bool(KEYS.hoverPreview, DEFAULTS.hoverPreview),
+    keepPipOnVideoChange: bool(KEYS.keepPipOnVideoChange, DEFAULTS.keepPipOnVideoChange),
   };
+}
+
+/** Giá trị gốc, để trang Cài đặt biết cái nào đang khác mặc định */
+export const PREF_DEFAULTS: Prefs = DEFAULTS;
+
+/**
+ * Xoá sạch tuỳ chọn đã lưu, `getPrefs()` sẽ tự rơi về mặc định.
+ * Xoá key thay vì ghi đè giá trị mặc định, để sau này đổi mặc định thì
+ * máy người dùng cũng nhận theo.
+ */
+export function resetPrefs() {
+  for (const k of Object.values(KEYS)) localStorage.removeItem(k);
+  window.dispatchEvent(new CustomEvent(EVENT));
+  applyAnimations(DEFAULTS.animations);
 }
 
 export function setPref<K extends keyof Prefs>(key: K, value: Prefs[K]) {

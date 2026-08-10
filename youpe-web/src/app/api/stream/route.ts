@@ -50,7 +50,36 @@ export async function GET(req: NextRequest) {
     Origin: 'https://www.youtube.com',
     Referer: 'https://www.youtube.com/',
   };
-  const range = req.headers.get('range');
+  /**
+   * `?cap=<byte>` — chỉ lấy phần đầu file. Dùng cho đoạn xem trước khi rê chuột.
+   *
+   * Không chỉ để tiết kiệm băng thông: googlevideo bóp tốc độ những lời gọi luồng
+   * adaptive không kèm `Range`, nên nếu để trình duyệt tự kéo từ byte 0 thì đoạn
+   * xem trước lâu hiện một cách vô lý. Có `Range` là YouTube trả về ngay.
+   *
+   * Bên dưới còn khai báo lại độ dài file đúng bằng chỗ đã cắt, để trình duyệt
+   * tưởng file chỉ dài ngần ấy: phát hết thì `loop` quay lại từ đầu thay vì xin
+   * thêm byte rồi ăn lỗi 416.
+   */
+  const cap = Math.max(0, Number(req.nextUrl.searchParams.get('cap')) || 0);
+
+  let range = req.headers.get('range');
+  if (cap > 0) {
+    const m = /bytes=(\d*)-(\d*)/.exec(range ?? '');
+    const start = m?.[1] ? Number(m[1]) : 0;
+    const wantEnd = m?.[2] ? Number(m[2]) : cap - 1;
+    const end = Math.min(wantEnd, cap - 1);
+
+    // xin phần nằm ngoài chỗ đã cắt: trả lời đúng chuẩn thay vì đẩy lên upstream
+    if (start > end) {
+      return new NextResponse(null, {
+        status: 416,
+        headers: { 'Content-Range': `bytes */${cap}`, 'Access-Control-Allow-Origin': '*' },
+      });
+    }
+    range = `bytes=${start}-${end}`;
+  }
+
   if (range) headers['Range'] = range;
 
   let upstream: Response;
@@ -122,6 +151,28 @@ export async function GET(req: NextRequest) {
     const v = upstream.headers.get(k);
     if (v) out.set(k, v);
   }
+  /*
+    Nói dối về tổng kích thước khi có `cap`: file thật dài bao nhiêu không quan trọng,
+    trình duyệt chỉ cần biết đúng phần mình được phép lấy. Không sửa thì nó thấy
+    "0-3145727/50000000", tưởng còn 47 MB nữa, xin tiếp và ăn 416 giữa chừng —
+    đoạn xem trước đứng hình thay vì lặp lại.
+  */
+  if (cap > 0) {
+    const cr = out.get('content-range');
+    const m = cr && /bytes (\d+)-(\d+)\/(\d+)/.exec(cr);
+    if (m) {
+      // File ngắn hơn mức chặn thì lấy độ dài thật, đừng hứa nhiều hơn cái đang có —
+      // hứa thừa là trình duyệt đi xin phần không tồn tại rồi ăn 416.
+      const shown = Math.min(cap, Number(m[3]));
+      out.set('Content-Range', `bytes ${m[1]}-${m[2]}/${shown}`);
+      out.set('Content-Length', String(Number(m[2]) - Number(m[1]) + 1));
+    } else {
+      // upstream lờ Range đi và trả cả file: đừng để lộ độ dài thật
+      out.delete('content-length');
+    }
+    out.set('Accept-Ranges', 'bytes');
+  }
+
   out.set('Access-Control-Allow-Origin', '*');
   out.set('Access-Control-Expose-Headers', 'Content-Length, Content-Range, Accept-Ranges');
   out.set('Cache-Control', 'private, max-age=3600');

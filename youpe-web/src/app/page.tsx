@@ -105,7 +105,7 @@ export default function HomePage() {
           <p className="mt-1 max-w-lg text-sm text-yt-sub">{err}</p>
           <button
             onClick={() => router.refresh()}
-            className="mt-4 rounded-full bg-yt-chip px-4 py-2 text-sm font-medium hover:bg-[#3f3f3f]"
+            className="mt-4 rounded-full bg-yt-chip px-4 py-2 text-sm font-medium hover:bg-yt-chip2"
           >
             Thử lại
           </button>

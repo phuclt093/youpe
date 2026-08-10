@@ -108,6 +108,16 @@ export function deleteSession(token: string) {
   save();
 }
 
+/** Có mặt cho khớp giao diện chung; ở đây mọi thứ nằm sẵn trong RAM nên chẳng lợi gì */
+export function findUserBySession(
+  token: string
+): { user: UserRow; expiresAt: number } | undefined {
+  const s = state.sessions[token];
+  if (!s) return undefined;
+  const user = state.users.find((u) => u.id === s.userId);
+  return user && { user, expiresAt: s.expiresAt };
+}
+
 /** Dọn phiên hết hạn, chạy một lần lúc nạp module */
 export function pruneSessions() {
   const now = Date.now();

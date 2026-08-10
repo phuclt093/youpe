@@ -81,7 +81,7 @@ export default function Chips({
               className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium ${
                 active === c.key
                   ? 'bg-yt-text text-yt-bg'
-                  : 'bg-yt-chip text-yt-text hover:bg-[#3f3f3f]'
+                  : 'bg-yt-chip text-yt-text hover:bg-yt-chip2'
               }`}
             >
               {c.label}

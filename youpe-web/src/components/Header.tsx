@@ -93,7 +93,7 @@ export default function Header({ onToggleMenu }: { onToggleMenu: () => void }) {
           </button>
         )}
         <div className="relative flex w-full">
-          <div className="search-focus flex w-full items-center rounded-l-full border border-yt-border bg-[#121212] px-4">
+          <div className="search-focus flex w-full items-center rounded-l-full border border-yt-border bg-yt-bg2 px-4">
             <input
               ref={inputRef}
               value={q}
@@ -104,10 +104,10 @@ export default function Header({ onToggleMenu }: { onToggleMenu: () => void }) {
               onFocus={() => setOpenSug(true)}
               onKeyDown={(e) => e.key === 'Enter' && go(q)}
               placeholder="Tìm kiếm  ( / )"
-              className="h-10 w-full bg-transparent text-base outline-none placeholder:text-[#888]"
+              className="h-10 w-full bg-transparent text-base outline-none placeholder:text-yt-sub"
             />
             {q && (
-              <button onClick={() => setQ('')} className="p-1 text-yt-sub hover:text-white">
+              <button onClick={() => setQ('')} className="p-1 text-yt-sub hover:text-yt-text">
                 <CloseIcon className="h-5 w-5" />
               </button>
             )}

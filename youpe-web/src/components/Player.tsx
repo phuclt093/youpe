@@ -933,7 +933,7 @@ export default function Player({
             <div className="mt-4 flex flex-wrap items-center justify-center gap-2 text-sm">
               <button
                 onClick={() => window.location.reload()}
-                className="rounded-full bg-yt-chip px-4 py-2 hover:bg-[#3f3f3f]"
+                className="rounded-full bg-yt-chip px-4 py-2 hover:bg-yt-chip2"
               >
                 Thử lại
               </button>
@@ -941,7 +941,7 @@ export default function Player({
                 href={`https://www.youtube.com/watch?v=${videoId}`}
                 target="_blank"
                 rel="noreferrer"
-                className="rounded-full bg-yt-chip px-4 py-2 hover:bg-[#3f3f3f]"
+                className="rounded-full bg-yt-chip px-4 py-2 hover:bg-yt-chip2"
               >
                 Mở trên YouTube
               </a>
@@ -1151,7 +1151,7 @@ export default function Player({
             </Btn>
 
             {menu && (
-              <div className="anim-pop absolute bottom-12 right-0 min-w-[220px] origin-bottom-right overflow-hidden rounded-xl bg-[#282828]/95 py-2 text-sm shadow-2xl backdrop-blur">
+              <div className="anim-pop absolute bottom-12 right-0 min-w-[220px] origin-bottom-right overflow-hidden rounded-xl bg-yt-hover/95 py-2 text-sm shadow-2xl backdrop-blur">
                 {menu === 'settings' && (
                   <>
                     <MenuRow

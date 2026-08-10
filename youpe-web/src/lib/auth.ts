@@ -1,7 +1,7 @@
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import { cookies } from 'next/headers';
 import {
-  deleteSession, findUserByEmailRow, findUserById, getSession, insertSession, insertUser,
+  deleteSession, findUserByEmailRow, findUserBySession, insertSession, insertUser,
 } from './db';
 
 export const SESSION_COOKIE = 'youpe_session';
@@ -27,34 +27,40 @@ export function verifyPassword(password: string, stored: string): boolean {
 
 /* ---------- phiên đăng nhập ---------- */
 
-export function createSession(userId: number): { token: string; expiresAt: Date } {
+export async function createSession(userId: number): Promise<{ token: string; expiresAt: Date }> {
   const token = randomBytes(32).toString('hex');
   const now = Date.now();
   const expires = now + SESSION_DAYS * 86_400_000;
 
-  insertSession(token, userId, expires);
+  await insertSession(token, userId, expires);
 
   return { token, expiresAt: new Date(expires) };
 }
 
-export function destroySession(token: string) {
-  deleteSession(token);
+export async function destroySession(token: string) {
+  await deleteSession(token);
 }
 
-export function userFromToken(token?: string | null): User | null {
+/**
+ * Một lượt hỏi cơ sở dữ liệu, không phải hai.
+ *
+ * Trước đây hỏi phiên rồi mới hỏi người dùng. Chạy trên SQLite ở máy thì không
+ * ai nhận ra, nhưng khi kho dữ liệu nằm trên cloud thì đó là hai vòng gọi tuần
+ * tự ở *mọi* request có đăng nhập.
+ */
+export async function userFromToken(token?: string | null): Promise<User | null> {
   if (!token) return null;
 
-  const session = getSession(token);
-  if (!session) return null;
+  const found = await findUserBySession(token);
+  if (!found) return null;
 
-  if (session.expiresAt < Date.now()) {
-    destroySession(token);
+  if (found.expiresAt < Date.now()) {
+    // dọn dẹp thôi, không cần chờ — người dùng vẫn bị coi là chưa đăng nhập
+    void destroySession(token);
     return null;
   }
 
-  const user = findUserById(session.userId);
-  if (!user) return null;
-
+  const { user } = found;
   return { id: user.id, email: user.email, name: user.name };
 }
 
@@ -80,8 +86,8 @@ export function findUserByEmail(email: string) {
   return findUserByEmailRow(email);
 }
 
-export function createUser(email: string, name: string, password: string): User {
-  const row = insertUser(email, name, hashPassword(password));
+export async function createUser(email: string, name: string, password: string): Promise<User> {
+  const row = await insertUser(email, name, hashPassword(password));
   return { id: row.id, email: row.email, name: row.name };
 }
 

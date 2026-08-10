@@ -47,7 +47,7 @@ export default function PlaylistsPage() {
             />
             <button
               onClick={create}
-              className="rounded-full bg-yt-text px-4 py-2 text-sm font-medium text-yt-bg hover:bg-white/90"
+              className="rounded-full bg-yt-text px-4 py-2 text-sm font-medium text-yt-bg hover:bg-yt-text/90"
             >
               Tạo
             </button>
@@ -55,7 +55,7 @@ export default function PlaylistsPage() {
         ) : (
           <button
             onClick={() => setCreating(true)}
-            className="rounded-full bg-yt-chip px-4 py-2 text-sm font-medium hover:bg-[#3f3f3f]"
+            className="rounded-full bg-yt-chip px-4 py-2 text-sm font-medium hover:bg-yt-chip2"
           >
             Tạo danh sách mới
           </button>

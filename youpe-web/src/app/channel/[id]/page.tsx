@@ -92,8 +92,8 @@ export default function ChannelPage({ params }: { params: Promise<{ id: string }
               }
               className={`mt-4 rounded-full px-4 py-2 text-sm font-medium ${
                 subbed
-                  ? 'bg-yt-chip text-yt-text hover:bg-[#3f3f3f]'
-                  : 'bg-yt-text text-yt-bg hover:bg-white/90'
+                  ? 'bg-yt-chip text-yt-text hover:bg-yt-chip2'
+                  : 'bg-yt-text text-yt-bg hover:bg-yt-text/90'
               }`}
             >
               {subbed ? 'Đã đăng ký' : 'Đăng ký'}
@@ -124,7 +124,7 @@ export default function ChannelPage({ params }: { params: Promise<{ id: string }
                 className={`rounded-full px-3 py-1.5 text-sm ${
                   sort === sv.key
                     ? 'bg-yt-text font-medium text-yt-bg'
-                    : 'bg-yt-chip hover:bg-[#3f3f3f]'
+                    : 'bg-yt-chip hover:bg-yt-chip2'
                 }`}
               >
                 {sv.label}

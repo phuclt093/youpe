@@ -191,7 +191,7 @@ export default function WatchPage() {
                     );
                   }}
                   className={`ml-3 flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium ${
-                    subbed ? 'bg-yt-chip hover:bg-[#3f3f3f]' : 'bg-yt-text text-yt-bg hover:bg-white/90'
+                    subbed ? 'bg-yt-chip hover:bg-yt-chip2' : 'bg-yt-text text-yt-bg hover:bg-yt-text/90'
                   }`}
                 >
                   {subbed && <BellIcon className="h-4 w-4" />}
@@ -203,13 +203,13 @@ export default function WatchPage() {
                 <div className="flex shrink-0 items-center rounded-full bg-yt-chip">
                   <button
                     onClick={() => data && setLiked(store.toggle('liked', asItem(data)))}
-                    className={`flex items-center gap-2 rounded-l-full px-4 py-2 text-sm hover:bg-[#3f3f3f] ${liked ? 'text-yt-blue' : ''}`}
+                    className={`flex items-center gap-2 rounded-l-full px-4 py-2 text-sm hover:bg-yt-chip2 ${liked ? 'text-yt-blue' : ''}`}
                   >
                     <LikeIcon className="h-5 w-5" />
                     {data?.likes != null ? formatCount(data.likes) : ''}
                   </button>
-                  <span className="h-6 w-px bg-white/20" />
-                  <button className="rounded-r-full px-4 py-2 hover:bg-[#3f3f3f]">
+                  <span className="h-6 w-px bg-yt-text/20" />
+                  <button className="rounded-r-full px-4 py-2 hover:bg-yt-chip2">
                     <DislikeIcon className="h-5 w-5" />
                   </button>
                 </div>
@@ -218,19 +218,19 @@ export default function WatchPage() {
                   onClick={() => {
                     navigator.clipboard?.writeText(`https://youtu.be/${id}`);
                   }}
-                  className="flex shrink-0 items-center gap-2 rounded-full bg-yt-chip px-4 py-2 text-sm hover:bg-[#3f3f3f]"
+                  className="flex shrink-0 items-center gap-2 rounded-full bg-yt-chip px-4 py-2 text-sm hover:bg-yt-chip2"
                 >
                   <ShareIcon className="h-5 w-5" /> Chia sẻ
                 </button>
 
                 <button
                   onClick={() => setSaveOpen(true)}
-                  className={`flex shrink-0 items-center gap-2 rounded-full bg-yt-chip px-4 py-2 text-sm hover:bg-[#3f3f3f] ${saved ? 'text-yt-blue' : ''}`}
+                  className={`flex shrink-0 items-center gap-2 rounded-full bg-yt-chip px-4 py-2 text-sm hover:bg-yt-chip2 ${saved ? 'text-yt-blue' : ''}`}
                 >
                   <ClockIcon className="h-5 w-5" /> {saved ? 'Đã lưu' : 'Lưu'}
                 </button>
 
-                <button className="shrink-0 rounded-full bg-yt-chip p-2 hover:bg-[#3f3f3f]">
+                <button className="shrink-0 rounded-full bg-yt-chip p-2 hover:bg-yt-chip2">
                   <MoreIcon className="h-5 w-5" />
                 </button>
               </div>

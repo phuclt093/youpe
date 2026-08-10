@@ -38,7 +38,7 @@ export default function EmptyState({
         {actionLabel && actionHref && (
           <Link
             href={actionHref}
-            className="mt-5 inline-block rounded-full bg-yt-chip px-4 py-2 text-sm font-medium hover:bg-[#3f3f3f]"
+            className="mt-5 inline-block rounded-full bg-yt-chip px-4 py-2 text-sm font-medium hover:bg-yt-chip2"
           >
             {actionLabel}
           </Link>
@@ -47,7 +47,7 @@ export default function EmptyState({
         {actionLabel && onAction && !actionHref && (
           <button
             onClick={onAction}
-            className="mt-5 rounded-full bg-yt-text px-4 py-2 text-sm font-medium text-yt-bg hover:bg-white/90"
+            className="mt-5 rounded-full bg-yt-text px-4 py-2 text-sm font-medium text-yt-bg hover:bg-yt-text/90"
           >
             {actionLabel}
           </button>

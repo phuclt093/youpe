@@ -120,11 +120,24 @@ function copyStyles(target: Window) {
     }
   }
 
-  // nền tối và bỏ lề mặc định, để trình phát lấp đầy cửa sổ
+  /*
+    Bảng màu nằm ở dạng biến CSS gán trực tiếp lên thẻ `html` của trang chính, mà
+    cửa sổ nổi có `html` riêng — chép stylesheet thôi thì mọi `rgb(var(--yt-…))`
+    trong đó rỗng tuếch, trình phát sang bên kia thành đen trắng lộn xộn.
+    Nên bê nguyên thuộc tính style và mấy cờ data- sang.
+  */
+  const root = document.documentElement;
+  const there = target.document.documentElement;
+  there.setAttribute('style', root.getAttribute('style') ?? '');
+  if (root.dataset.theme) there.dataset.theme = root.dataset.theme;
+  if (root.dataset.serif) there.dataset.serif = root.dataset.serif;
+  there.className = root.className; // giữ cả cờ tắt hiệu ứng (.no-anim)
+
+  // bỏ lề mặc định, để trình phát lấp đầy cửa sổ
   const base = target.document.createElement('style');
   base.textContent =
-    'html,body{margin:0;padding:0;background:#0f0f0f;color:#fff;overflow:hidden;height:100%}' +
-    '*{box-sizing:border-box}';
+    'html,body{margin:0;padding:0;background:rgb(var(--yt-bg));color:rgb(var(--yt-text));' +
+    'overflow:hidden;height:100%}*{box-sizing:border-box}';
   target.document.head.appendChild(base);
 }
 
@@ -214,9 +227,35 @@ export default function PlayerHost({ children }: { children: React.ReactNode }) 
     if (isFirst || !id || !host) return;
     if (!document.pictureInPictureElement) return;
 
+    // Giữ tham chiếu thẻ cũ TRƯỚC khi nhả cửa sổ nổi — sau khi nhả xong
+    // `document.pictureInPictureElement` thành null, không còn đường nào tắt nó nữa.
+    const oldVideo = document.pictureInPictureElement as HTMLVideoElement | null;
+
     closingSelf.current = true;
     setTimeout(() => (closingSelf.current = false), 500);
-    document.exitPictureInPicture().catch(() => {});
+
+    // Câm tiếng và dừng ngay, đồng bộ — không chờ `exitPictureInPicture()` (async),
+    // nếu chờ sẽ có khoảng hở nghe thấy hai video cùng lúc.
+    if (oldVideo) {
+      oldVideo.muted = true;
+      oldVideo.pause();
+    }
+
+    document
+      .exitPictureInPicture()
+      .catch(() => {})
+      .finally(() => {
+        // Thẻ đã rời DOM thì cắt hẳn nguồn, để trình duyệt thu hồi bộ giải mã.
+        // Không cắt thì nó vẫn ngốn CPU và có thể tự phát lại.
+        if (oldVideo && !host.contains(oldVideo)) {
+          oldVideo.removeAttribute('src');
+          oldVideo.load();
+        }
+      });
+
+    // Người dùng có thể tắt tuỳ chọn này: video mới thì cứ phát trên trang bình
+    // thường, không tự nhảy lại vào cửa sổ nổi.
+    if (!getPrefs().keepPipOnVideoChange) return;
 
     // Chờ thẻ video mới có dữ liệu rồi mới đưa vào cửa sổ nổi. Bỏ cuộc sau 5 giây:
     // quá mốc đó thì quyền thao tác của người dùng đã hết hiệu lực, có gọi cũng bị từ chối.
@@ -590,7 +629,7 @@ export function PlayerSlot({ className = '' }: { className?: string }) {
             <p className="text-sm text-yt-sub">Đang phát ở cửa sổ nổi</p>
             <button
               onClick={closePip}
-              className="mt-3 rounded-full bg-white px-4 py-2 text-sm font-medium text-black hover:bg-white/90"
+              className="mt-3 rounded-full bg-yt-text px-4 py-2 text-sm font-medium text-yt-bg hover:bg-yt-text/90"
             >
               Đưa về đây
             </button>

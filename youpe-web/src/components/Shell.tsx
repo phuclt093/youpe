@@ -11,6 +11,7 @@ import Shortcuts from './Shortcuts';
 import PlayerHost from './PlayerHost';
 import DesktopBridge from './DesktopBridge';
 import { applyAnimations, getPrefs } from '@/lib/prefs';
+import { applyTheme, getActiveTheme } from '@/lib/theme';
 
 export default function Shell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
@@ -26,6 +27,12 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   // áp dụng tuỳ chọn tắt hiệu ứng ngay khi mở app
   useEffect(() => {
     applyAnimations(getPrefs().animations);
+    /*
+      Bảng màu đã được script trong <head> áp trước khi vẽ. Gọi lại ở đây là lưới
+      an toàn: script kia nuốt mọi lỗi để không bao giờ chặn trang, nên nếu nó có
+      hỏng vì lý do gì thì chỗ này vẫn kéo giao diện về đúng chủ đề.
+    */
+    applyTheme(getActiveTheme());
   }, []);
 
   const showMini = !open && !isWatch;

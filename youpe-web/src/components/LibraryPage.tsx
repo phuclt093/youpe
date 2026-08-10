@@ -33,7 +33,7 @@ export default function LibraryPage({
         {items.length > 0 && (
           <button
             onClick={() => { store.clear(storeKey); refresh(); }}
-            className="flex items-center gap-2 rounded-full bg-yt-chip px-4 py-2 text-sm hover:bg-[#3f3f3f]"
+            className="flex items-center gap-2 rounded-full bg-yt-chip px-4 py-2 text-sm hover:bg-yt-chip2"
           >
             <TrashIcon className="h-5 w-5" /> Xoá tất cả
           </button>

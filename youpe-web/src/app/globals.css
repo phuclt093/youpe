@@ -2,18 +2,46 @@
 @tailwind components;
 @tailwind utilities;
 
-:root { color-scheme: dark; }
+/* ---------- bảng màu ----------
+
+  Đây là bộ mặc định. Mỗi biến chứa ba số kênh màu chứ không phải mã hex, để
+  Tailwind ghép được với độ mờ: `bg-yt-elev/60` dịch ra `rgb(var(--yt-elev) / .6)`.
+
+  Đổi chủ đề = gán lại mấy biến này trên thẻ `html`. Xem `src/lib/theme.ts`.
+*/
+:root {
+  color-scheme: dark;
+
+  --yt-bg: 15 15 15;
+  --yt-bg2: 18 18 18;
+  --yt-elev: 33 33 33;
+  --yt-hover: 39 39 39;
+  --yt-chip: 39 39 39;
+  --yt-chip2: 63 63 63;
+  --yt-border: 48 48 48;
+  --yt-text: 241 241 241;
+  --yt-sub: 170 170 170;
+  --yt-red: 255 0 51;
+  --yt-blue: 62 166 255;
+  --yt-off: 90 90 90;
+}
 
 html, body {
-  background: #0f0f0f;
-  color: #f1f1f1;
+  background: rgb(var(--yt-bg));
+  color: rgb(var(--yt-text));
   font-family: Roboto, Arial, system-ui, sans-serif;
 }
 
-/* Scrollbar giống YouTube dark */
+/* Chủ đề cổ phong đổi sang chữ có chân — cùng bảng màu mà khác hẳn cảm giác */
+html[data-serif='1'],
+html[data-serif='1'] body {
+  font-family: 'Noto Serif', Charter, Georgia, 'Times New Roman', serif;
+}
+
+/* Scrollbar ăn theo màu chữ phụ, nên chủ đề sáng không bị thanh cuộn tối om */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-thumb { background: #717171; border-radius: 8px; }
-::-webkit-scrollbar-thumb:hover { background: #909090; }
+::-webkit-scrollbar-thumb { background: rgb(var(--yt-sub) / .55); border-radius: 8px; }
+::-webkit-scrollbar-thumb:hover { background: rgb(var(--yt-sub) / .8); }
 ::-webkit-scrollbar-track { background: transparent; }
 
 .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -24,10 +52,10 @@ html, body {
 .line-clamp-3 { display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
 
 @keyframes shimmer { 100% { transform: translateX(100%); } }
-.skeleton { position: relative; overflow: hidden; background: #272727; }
+.skeleton { position: relative; overflow: hidden; background: rgb(var(--yt-hover)); }
 .skeleton::after {
   content: ''; position: absolute; inset: 0; transform: translateX(-100%);
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,.06), transparent);
+  background: linear-gradient(90deg, transparent, rgb(var(--yt-text) / .07), transparent);
   animation: shimmer 1.4s infinite;
 }
 
@@ -67,7 +95,7 @@ html, body {
 .group:hover .card-thumb img { transform: scale(1.045); }
 .card-thumb img { transition: transform .45s cubic-bezier(.22,.61,.36,1); }
 
-.group:hover .card-title { color: #fff; }
+.group:hover .card-title { color: rgb(var(--yt-text)); }
 .card-title { transition: color .15s ease; }
 
 /* Nút bấm có phản hồi */
@@ -79,22 +107,22 @@ button:active:not(:disabled) { transform: scale(.94); }
 .seek-wrap:hover .seek-bar { height: 5px; }
 
 /* Focus rõ ràng cho bàn phím */
-:focus-visible { outline: 2px solid #3ea6ff; outline-offset: 2px; border-radius: 4px; }
+:focus-visible { outline: 2px solid rgb(var(--yt-blue)); outline-offset: 2px; border-radius: 4px; }
 
 /* Cuộn mượt khi dùng phím tắt / mũi tên chip */
 html { scroll-behavior: smooth; }
 
 /* Ô tìm kiếm: viền sáng nhẹ khi focus, giống YouTube */
 .search-focus:focus-within {
-  border-color: #3ea6ff;
-  box-shadow: inset 0 0 0 1px rgba(62, 166, 255, .35);
+  border-color: rgb(var(--yt-blue));
+  box-shadow: inset 0 0 0 1px rgb(var(--yt-blue) / .35);
 }
 
 /* Ảnh chưa tải xong thì nền tối thay vì nháy trắng */
-img { background-color: #212121; }
+img { background-color: rgb(var(--yt-elev)); }
 
 /* Chip đang chọn: nổi hơn chút */
-.chip-active { box-shadow: 0 0 0 1px rgba(255, 255, 255, .15); }
+.chip-active { box-shadow: 0 0 0 1px rgb(var(--yt-text) / .18); }
 
 /* Tắt hiệu ứng theo tuỳ chọn trong trang Cài đặt */
 .no-anim *,

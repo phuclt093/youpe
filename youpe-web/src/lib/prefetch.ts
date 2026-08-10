@@ -16,6 +16,14 @@
 export type PrefetchState = 'idle' | 'loading' | 'ready' | 'failed';
 
 const state = new Map<string, PrefetchState>();
+/**
+ * Giữ luôn nội dung `/api/streams` đã tải về.
+ *
+ * Trước đây chỉ nhớ trạng thái rồi vứt phần thân đi, nên tính năng xem trước
+ * phải gọi lại đúng đường dẫn đó lần thứ hai — thêm một vòng mạng cho dữ liệu
+ * mình vừa cầm trên tay xong.
+ */
+const data = new Map<string, any>();
 const timers = new Map<string, ReturnType<typeof setTimeout>>();
 const queue: string[] = [];
 let running = 0;
@@ -34,6 +42,11 @@ export function getPrefetchState(id: string): PrefetchState {
   return state.get(id) ?? 'idle';
 }
 
+/** Nội dung `/api/streams/<id>` đã nạp trước, chưa có thì null */
+export function getPrefetchData(id: string): any | null {
+  return data.get(id) ?? null;
+}
+
 export function onPrefetchChange(fn: (id: string, s: PrefetchState) => void): () => void {
   const h = (e: Event) => {
     const d = (e as CustomEvent).detail;
@@ -50,17 +63,15 @@ function pump() {
 
     running++;
     fetch(`/api/streams/${id}`)
-      .then((r) => {
-        if (r.ok) {
-          emit(id, 'ready');
-        } else {
-          emit(id, 'failed');
-          // cho phép thử lại sau, biết đâu chỉ là trục trặc nhất thời
-          setTimeout(() => state.delete(id), RETRY_AFTER_FAIL_MS);
-        }
+      .then(async (r) => {
+        if (!r.ok) throw new Error(String(r.status));
+        // giữ lại phần thân: tính năng xem trước cần đúng dữ liệu này
+        data.set(id, await r.json());
+        emit(id, 'ready');
       })
       .catch(() => {
         emit(id, 'failed');
+        // cho phép thử lại sau, biết đâu chỉ là trục trặc nhất thời
         setTimeout(() => state.delete(id), RETRY_AFTER_FAIL_MS);
       })
       .finally(() => {

@@ -78,7 +78,7 @@ export default function Comments({ videoId }: { videoId: string }) {
       {limit < items.length && (
         <button
           onClick={() => setLimit((l) => l + 20)}
-          className="mt-6 rounded-full bg-yt-chip px-4 py-2 text-sm font-medium hover:bg-[#3f3f3f]"
+          className="mt-6 rounded-full bg-yt-chip px-4 py-2 text-sm font-medium hover:bg-yt-chip2"
         >
           Xem thêm bình luận
         </button>

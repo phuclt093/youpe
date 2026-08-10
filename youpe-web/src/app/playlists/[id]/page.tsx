@@ -80,7 +80,7 @@ export default function PlaylistDetail({ params }: { params: Promise<{ id: strin
           {playlist.videos.length > 0 && (
             <button
               onClick={() => router.push(`/watch?v=${playlist.videos[0].id}`)}
-              className="rounded-full bg-yt-text px-4 py-2 text-sm font-medium text-yt-bg hover:bg-white/90"
+              className="rounded-full bg-yt-text px-4 py-2 text-sm font-medium text-yt-bg hover:bg-yt-text/90"
             >
               Phát tất cả
             </button>
@@ -90,7 +90,7 @@ export default function PlaylistDetail({ params }: { params: Promise<{ id: strin
               setName(playlist.name);
               setRenaming(true);
             }}
-            className="rounded-full bg-yt-chip px-4 py-2 text-sm hover:bg-[#3f3f3f]"
+            className="rounded-full bg-yt-chip px-4 py-2 text-sm hover:bg-yt-chip2"
           >
             Đổi tên
           </button>
@@ -101,7 +101,7 @@ export default function PlaylistDetail({ params }: { params: Promise<{ id: strin
                 router.push('/playlists');
               }
             }}
-            className="rounded-full bg-yt-chip px-4 py-2 text-sm hover:bg-[#3f3f3f]"
+            className="rounded-full bg-yt-chip px-4 py-2 text-sm hover:bg-yt-chip2"
           >
             Xoá
           </button>
