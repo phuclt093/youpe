@@ -10,6 +10,8 @@
     "check": "node scripts/build.mjs --check",
     "typecheck": "npm --prefix youpe-web run typecheck",
     "db:check": "npm --prefix youpe-web run db:check",
+    "probe": "npm --prefix youpe-web run probe --",
+    "icon": "npm --prefix youpe-desktop run icon",
     "update:ytdlp": "npm --prefix youpe-web run update:ytdlp"
   }
 }

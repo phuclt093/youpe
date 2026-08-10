@@ -408,6 +408,14 @@ function createWindow() {
     backgroundColor: '#0f0f0f',
     autoHideMenuBar: true,
     show: false,
+    /*
+      Trỏ vào `assets/` chứ không phải `build/`: `build/` chỉ dành cho
+      electron-builder và không nằm trong danh sách `files` của bản đóng gói, nên
+      lúc chạy không đọc được. Có dòng này thì taskbar có icon đúng ngay cả khi
+      chạy dev — Linux đặc biệt cần, vì nó lấy icon từ cửa sổ chứ không phải từ
+      file .desktop khi app chưa cài.
+    */
+    icon: path.join(__dirname, 'assets', 'icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,

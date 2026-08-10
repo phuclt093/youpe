@@ -15,6 +15,7 @@
     "dist:win": "npm run prepare:web && electron-builder --win",
     "dist:mac": "npm run prepare:web && electron-builder --mac",
     "dist:linux": "npm run prepare:web && electron-builder --linux",
+    "icon": "node scripts/make-icon.mjs",
     "dev:shell-only": "cross-env YOUPE_DEV_URL=http://localhost:3000 electron ."
   },
   "devDependencies": {

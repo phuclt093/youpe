@@ -381,7 +381,49 @@ còn sống sót qua các lần cập nhật app.
 
 ## 5. Gỡ lỗi
 
-### Bước đầu tiên luôn là `/api/debug/<videoId>`
+### Kẹt ở 360p, không chọn được chất lượng → `npm run probe -- <videoId>`
+
+Triệu chứng: badge của trình phát ghi `luồng gộp 360p`, menu chất lượng nói "Nguồn
+này chỉ có một chất lượng". Nghĩa là `j.video` hoặc `j.audio` rỗng — YouTube chỉ
+trả về đúng một file itag 18.
+
+**Đừng đoán.** Danh sách client YouTube còn trả luồng adaptive thay đổi vài tháng
+một lần. `scripts/probe-clients.mjs` hỏi thẳng từng client rồi in bảng:
+
+```
+client         video riêng  tiếng riêng  gộp   cao nhất  thời gian
+tv             142          8            1     2160p     3.1s
+ios            0            0            1     360p      2.4s
+```
+
+Client nào cột "video riêng" khác 0 thì đặt vào `.env.local`:
+
+```
+YTDLP_ARGS=--extractor-args youtube:player_client=tv
+```
+
+`ytdlp.ts` **không ghim client nữa** — để yt-dlp tự chọn. Muốn ghim thì đặt
+`YTDLP_PLAYER_CLIENT`, khỏi sửa code.
+
+Kết quả đo ngày 10/08/2026 (`dQw4w9WgXcQ`):
+
+| client | video riêng | tiếng riêng | cao nhất |
+|---|---|---|---|
+| `default` | 22 | 4 | 2160p |
+| `tv_embedded` | 22 | 4 | 2160p |
+| `android_vr` | 22 | 4 | 2160p |
+| `android` | 0 | 0 | **360p** |
+| `ios`, `web`, `web_safari`, `mweb`, `tv` | lỗi "Requested format is not available" | | |
+
+Không client nào sống thì vấn đề nằm ở IP hoặc đăng nhập, không phải ở code: thử
+cookie trình duyệt (`YTDLP_COOKIES_FROM_BROWSER=chrome`, phải đóng hẳn trình duyệt
+trước), yt-dlp bản nightly, hoặc đổi mạng.
+
+**Bản phát hành ổn định của yt-dlp có thể đi sau YouTube.** Đã kiểm chứng
+10/08/2026: `2026.07.04` là bản mới nhất trên GitHub, tải lại cũng không đổi gì —
+nên "cập nhật yt-dlp" không phải lúc nào cũng là câu trả lời.
+
+### Bước tiếp theo là `/api/debug/<videoId>`
 
 Trả về:
 
@@ -463,6 +505,8 @@ npm run dev            # web + Electron
 npm run check          # kiểm tra mà không đóng gói
 npm run build          # kiểm tra rồi đóng gói cho hệ đang chạy
 npm run db:check       # thử kết nối Turso
+npm run probe -- <id>  # dò client YouTube nào còn trả luồng adaptive
+npm run icon           # sinh lại icon app từ youpe-desktop/build/icon.svg
 npm run update:ytdlp
 
 # ---- Web ----
@@ -563,11 +607,42 @@ nếu binary quá 30 ngày tuổi. Thêm `npm run build` / `npm run check` ở t
 vào file này. Trước đó ba file cùng nói về Turso, đọc lại không biết cái nào còn
 đúng.
 
+**Icon app.** Trước đây `youpe-desktop/build/` **không tồn tại**, mà
+`package.json` lại trỏ `win.icon` và `linux.icon` vào đó — nên bản đóng gói dùng
+icon Electron mặc định. Nay có `build/icon.svg` làm nguồn và `npm run icon` sinh
+ra `build/icon.png`, `build/icon.ico`, `assets/icon.png`. Logo trong app và
+favicon dùng chung một hình.
+
+Hai cái bẫy ở đây: `.gitignore` có dòng `build/` (dành cho Gradle/Next) nuốt luôn
+thư mục tài nguyên của electron-builder — đã thêm ngoại lệ; và icon lúc chạy phải
+lấy từ `assets/` chứ không phải `build/`, vì `build/` không nằm trong danh sách
+`files` của bản đóng gói.
+
+**Vụ 360p — đã tìm ra và sửa.** Hai giả thuyết sai trước khi tới đúng, đáng ghi lại:
+
+1. *"yt-dlp cũ"* — sai. Tải lại vẫn ra `2026.07.04`, đó đúng là bản mới nhất trên
+   GitHub. **Bản phát hành ổn định có thể đi sau YouTube, cập nhật không cứu được.**
+2. *"lỗi do mấy thay đổi hôm nay"* — sai. `git status` cho thấy toàn bộ đường trích
+   xuất không bị đụng tới.
+
+Nguyên nhân thật: `ytdlp.ts` ghim cứng `player_client=ios,android,web`, và ngày
+10/08/2026 **cả ba đều chết** — `ios`/`web` báo "Requested format is not
+available", `android` chỉ còn một luồng gộp 360p. Không có lỗi nào được ném ra nên
+rất khó lần; app chỉ lặng lẽ rơi xuống luồng gộp.
+
+Cách sửa: **bỏ ghim, để yt-dlp tự chọn.** Người bảo trì yt-dlp cập nhật danh sách
+client nhanh hơn dự án này nhiều. Muốn ghim lại thì đặt `YTDLP_PLAYER_CLIENT`,
+khỏi sửa code. Bảng đo ở mục 5.
+
+Đáng nói: `scripts/ytdlp_worker.py` (đường Python) **không** ghim client nên vốn
+đã đúng — chỉ đường chạy binary bị. Ai dùng `pip install yt-dlp` sẽ không bao giờ
+gặp lỗi này.
+
+Công cụ mới: `npm run probe -- <videoId>` hỏi thẳng 10 player client rồi in bảng.
+Lần sau YouTube siết tiếp thì một lệnh là ra đáp án, khỏi đoán.
+
 **Còn nợ sau đợt này:**
 
-- yt-dlp trên máy phát triển đang là bản 2026.07.04 (37 ngày tuổi) — **đây là lý do
-  hiện tại video nào cũng chỉ có 360p**. Chạy `npm run update:ytdlp`, chưa ăn thua
-  thì đặt `YTDLP_COOKIES_FROM_BROWSER=chrome` (phải đóng hẳn trình duyệt trước).
 - Bản đã cài trên máy người dùng vẫn cứ già đi — chưa có cơ chế tự cập nhật yt-dlp
   theo lịch, cũng chưa có nút "Cập nhật yt-dlp" trong Cài đặt.
 - `pruneSessions()` chưa được gọi theo lịch ở bản Turso.

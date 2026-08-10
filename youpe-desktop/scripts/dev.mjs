@@ -81,8 +81,42 @@ async function ensureWeb() {
     shell: isWin,
   });
 
-  webProc.stdout.on('data', (d) => process.stdout.write(`[web] ${d}`));
-  webProc.stderr.on('data', (d) => process.stderr.write(`[web] ${d}`));
+  /**
+   * Bắt `EADDRINUSE` ngay thay vì ngồi chờ hết 2 phút.
+   *
+   * Lỗi này hiện ra ở giây đầu tiên, nhưng vòng chờ bên dưới không biết đọc log
+   * nên vẫn ping đủ 120 giây rồi mới báo "không phản hồi" — một câu chẳng nói lên
+   * điều gì, trong khi nguyên nhân đã nằm sờ sờ phía trên. Tệ hơn: cổng bị chiếm
+   * thường là do chính lần chạy trước còn sót lại, nên người dùng dễ tưởng app hỏng.
+   */
+  let portBusy = false;
+  const watch = (d) => {
+    const s = String(d);
+    if (!portBusy && /EADDRINUSE/.test(s)) {
+      portBusy = true;
+      console.error(
+        `\n✗ Cổng ${PORT} đang bị tiến trình khác chiếm — nhiều khả năng là lần chạy trước chưa tắt hẳn.\n\n` +
+          '  Xem ai đang giữ:\n' +
+          (isWin ? `    netstat -ano | findstr :${PORT}\n` : `    lsof -i :${PORT}\n`) +
+          '  Tắt nó:\n' +
+          (isWin
+            ? '    taskkill /PID <pid> /F\n'
+            : `    kill $(lsof -t -i:${PORT})\n`) +
+          `\n  Hoặc dùng cổng khác:  YOUPE_DEV_PORT=3100 npm run dev\n`
+      );
+      stopWeb();
+      process.exit(1);
+    }
+  };
+
+  webProc.stdout.on('data', (d) => {
+    watch(d);
+    process.stdout.write(`[web] ${d}`);
+  });
+  webProc.stderr.on('data', (d) => {
+    watch(d);
+    process.stderr.write(`[web] ${d}`);
+  });
 
   // Next ở chế độ dev biên dịch lần đầu khá lâu
   const ok = await waitUntilUp(120_000);

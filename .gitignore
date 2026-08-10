@@ -57,3 +57,11 @@ yarn-error.log*
 # san pham build cua app desktop
 youpe-desktop/resources/
 youpe-desktop/release/
+
+# Icon app: `build/` o tren bi chan (danh cho thu muc build cua Gradle/Next),
+# nhung youpe-desktop/build/ la thu muc TAI NGUYEN cua electron-builder — mat no
+# thi ban dong goi quay ve icon Electron mac dinh.
+!youpe-desktop/build/
+!youpe-desktop/build/icon.svg
+!youpe-desktop/build/icon.png
+!youpe-desktop/build/icon.ico

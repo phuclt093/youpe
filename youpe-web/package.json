@@ -8,6 +8,7 @@
     "start": "next start -p 3000",
     "typecheck": "tsc --noEmit",
     "db:check": "node scripts/check-db.mjs",
+    "probe": "node scripts/probe-clients.mjs",
     "setup:ytdlp": "node scripts/get-ytdlp.mjs",
     "update:ytdlp": "node scripts/get-ytdlp.mjs"
   },

@@ -58,10 +58,30 @@ function ytdlpArgs(id: string, strategy: Strategy): string[] {
     '--extractor-retries', '1',
   ];
 
+  /**
+   * Chọn player client.
+   *
+   * Chỗ này từng ghim cứng `ios,android,web`. Ngày 10/08/2026 cả ba đều chết:
+   * `ios` và `web` trả "Requested format is not available", `android` chỉ còn
+   * đúng một luồng gộp 360p. Hậu quả là mọi video đều kẹt ở 360p và menu chất
+   * lượng trống trơn — mà không có lỗi nào được ném ra, nên rất khó lần.
+   *
+   * Nên **không ghim nữa**: để yt-dlp tự chọn. Danh sách client còn sống đổi vài
+   * tháng một lần và người bảo trì yt-dlp cập nhật nhanh hơn dự án này nhiều.
+   * Đo bằng `npm run probe`: bộ mặc định trả 22 luồng hình + 4 luồng tiếng, tới
+   * 2160p, trong 2.0 giây — nhanh ngang bộ ghim cũ.
+   *
+   * Muốn ghim lại (vì YouTube siết tiếp) thì đặt biến môi trường, khỏi sửa code:
+   *
+   *   YTDLP_PLAYER_CLIENT=tv_embedded,android_vr
+   *
+   * Chạy `npm run probe -- <videoId>` để biết đặt cái gì.
+   */
   if (strategy === 'all') {
     args.push('--extractor-args', 'youtube:player_client=all');
   } else {
-    args.push('--extractor-args', 'youtube:player_client=ios,android,web');
+    const pinned = process.env.YTDLP_PLAYER_CLIENT?.trim();
+    if (pinned) args.push('--extractor-args', `youtube:player_client=${pinned}`);
   }
 
   const cookies = process.env.YTDLP_COOKIES_FROM_BROWSER?.trim();
