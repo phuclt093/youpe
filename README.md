@@ -7,8 +7,16 @@ Xem YouTube không quảng cáo, giao diện bám sát YouTube.
 | `youpe-web/` | Next.js — giao diện web, đồng thời là server API cho mọi client |
 | `youpe-desktop/` | Vỏ Electron, tự khởi động server, không cần terminal |
 | `youpe-tv/` | App Android TV (Kotlin + Compose TV + Media3) |
-| `docs/CONTEXT.md` | **Đọc file này trước** — kiến trúc, quyết định, những hướng đã thất bại |
-| `docs/TURSO.md` | Hướng dẫn chuyển dữ liệu tài khoản lên Turso |
+| `docs/CONTEXT.md` | **Đọc file này trước** — kiến trúc, quyết định, những hướng đã thất bại, nhật ký tiến độ |
+
+## Lệnh ở thư mục gốc
+
+```bash
+npm run dev      # chạy web + Electron
+npm run check    # kiểm tra mọi thứ mà không đóng gói
+npm run build    # kiểm tra rồi đóng gói cho hệ đang chạy
+npm run db:check # thử kết nối Turso
+```
 
 ## Bắt đầu nhanh
 

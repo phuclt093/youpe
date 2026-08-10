@@ -3,7 +3,10 @@
 Đọc file này trước khi làm gì. Nó ghi lại **vì sao** mọi thứ ở trạng thái hiện tại,
 đặc biệt là những hướng đã thử và thất bại — để không mất công đi lại đường cũ.
 
-Cập nhật lần cuối: 28/07/2026
+Cập nhật lần cuối: 10/08/2026
+
+> **Nhật ký tiến độ nằm ở mục 9, cuối file.** Ai vào sau thì đọc mục 9 trước để
+> biết chuyện gì vừa xảy ra, rồi quay lại các mục trên để hiểu vì sao.
 
 ---
 
@@ -281,6 +284,101 @@ Cả hai đều theo tuỳ chọn `playInBackground` trong trang Cài đặt.
 
 ---
 
+### 4.17 Bảng màu là biến CSS, không phải mã hex
+
+`tailwind.config.ts` không chứa mã màu nào — mọi màu đều là
+`rgb(var(--yt-<tên>) / <alpha-value>)`. Biến chứa **ba số kênh màu** ("15 15 15")
+chứ không phải chuỗi `#0f0f0f`, vì chỉ có vậy Tailwind mới ghép được độ mờ:
+`bg-yt-elev/60` dịch ra `rgb(var(--yt-elev) / .6)`.
+
+Đổi chủ đề = gán lại mấy biến đó lên thẻ `html` (`src/lib/theme.ts`). Không dựng
+lại DOM nên video đang chạy không gián đoạn.
+
+Hai chỗ dễ vấp:
+
+- **Có một script chặn trong `<head>`** (`layout.tsx` gọi `themeBootScript()`).
+  Không có nó thì trang luôn hiện ra bằng màu mặc định rồi mới nhảy sang chủ đề đã
+  chọn — với chủ đề sáng đó là một cú loé trắng. React chạy quá muộn cho việc này.
+- **`copyStyles()` trong `PlayerHost.tsx` phải chép cả `style` của `html` sang cửa
+  sổ nổi.** Cửa sổ nổi có `html` riêng; chỉ chép stylesheet thì mọi
+  `rgb(var(--yt-…))` bên đó rỗng tuếch.
+
+Viết màu cứng trong `className` (kiểu `bg-white`, `hover:bg-[#3f3f3f]`) là làm hỏng
+chủ đề sáng. Dùng token; thiếu token thì thêm vào `tailwind.config.ts`.
+
+### 4.18 Xem trước khi rê chuột — ba cái bẫy đã gỡ
+
+`VideoCard.tsx` + `src/lib/preview.ts`. Từng chậm tới mức tưởng như hỏng, vì ba
+nguyên nhân chồng lên nhau:
+
+1. **Bỏ cuộc quá sớm.** Hết 700ms mà luồng chưa nạp xong thì hàm return luôn và
+   không bao giờ thử lại — lần rê chuột đầu gần như chẳng khi nào ra hình. Nay
+   `warm` nằm trong danh sách phụ thuộc của effect nên nạp xong là chạy lại.
+2. **Gọi `/api/streams` hai lần.** `prefetch.ts` nay giữ lại phần thân JSON
+   (`getPrefetchData`), `preview.ts` dùng lại.
+3. **Tải nguyên cả file.** Quan trọng nhất: googlevideo **bóp băng thông** những
+   lời gọi luồng adaptive không kèm `Range`. Nay `preview.ts` gắn `&cap=<byte>`
+   vào đường proxy; `/api/stream` biến nó thành `Range: bytes=0-N` **và khai lại
+   `Content-Length`/`Content-Range` đúng bằng chỗ đã cắt**, để trình duyệt tưởng
+   file chỉ dài ngần ấy và `loop` quay vòng sạch thay vì ăn lỗi 416.
+
+Đừng đặt `video.currentTime = 0` trước khi có metadata — trình duyệt xếp hàng một
+lượt tua, tốn thêm một vòng mạng trước khi hình đầu tiên hiện ra.
+
+### 4.19 Lớp lưu trữ bất đồng bộ, và Turso
+
+`src/lib/db.ts` là lớp chọn backend. Bề mặt **luôn trả `Promise`**, kể cả khi
+backend là SQLite đọc file ngay tại chỗ. Cố ý: mọi cơ sở dữ liệu qua mạng đều bất
+đồng bộ, để bề mặt đồng bộ thì thêm driver mới đồng nghĩa với sửa lại toàn bộ nơi
+gọi. Backend được phép trả thẳng giá trị (`Async<T> = T | Promise<T>`), nên
+`db-json.ts` và `db-sqlite.ts` không phải đổi một dòng nào.
+
+| Driver | Khi nào dùng |
+|---|---|
+| `db-turso.ts` | Có `TURSO_DATABASE_URL` |
+| `db-sqlite.ts` | `node:sqlite` chạy được (Node ≥ 22.5) |
+| `db-json.ts` | Còn lại |
+
+Ba điểm dễ vấp:
+
+- **`db-turso.ts` nhập từ `@libsql/client/web`, không phải `@libsql/client`.** Cửa
+  vào mặc định kéo theo gói nhị phân biên dịch sẵn — đúng loại đã làm hỏng lần thử
+  `better-sqlite3` (mục 3.3) và làm bản đóng gói phình ra. Bản `/web` thuần
+  JavaScript; đã kiểm chứng bản standalone chỉ có ~600 KB JS, không file `.node`
+  nào. Đổi lại không dùng được bản sao nhúng (embedded replica).
+- **`userFromToken()` dùng một câu `JOIN`,** không phải `getSession` rồi
+  `findUserById`. Đường này chạy ở mọi request có đăng nhập; DB đặt ở Tokyo nên
+  mỗi vòng tốn 50–80ms.
+- **`pruneSessions()` ở bản Turso không tự chạy lúc nạp module** như bản SQLite.
+  Mỗi lần khởi động lại tiến trình là một lượt ghi, mà Turso tính tiền theo dòng
+  ghi. Chưa có chỗ nào gọi nó theo lịch — việc còn nợ.
+
+### 4.20 `.env.local` không đi theo bản đóng gói
+
+Cái bẫy im lặng nhất của cả dự án.
+
+`.env.local` chỉ có tác dụng lúc chạy dev. Bản standalone của Next không mang nó
+theo, và `prepare-web.mjs` cũng chỉ chép `.next/standalone` sang. Nên máy chạy dev
+thì đồng bộ Turso ngon lành, cài bản đóng gói vào là lặng lẽ ghi xuống SQLite trên
+máy — không lỗi, không cảnh báo, và phải tới lúc mở máy thứ hai mới phát hiện.
+
+Vỏ desktop vì vậy đọc thêm một file riêng của từng máy (`userEnv()` trong
+`main.js`):
+
+```
+Linux    ~/.config/youpe/data/youpe.env
+Windows  %APPDATA%\youpe\data\youpe.env
+macOS    ~/Library/Application Support/youpe/data/youpe.env
+```
+
+Không gói token vào file cài là cố ý: token Turso là quyền đọc ghi toàn bộ cơ sở
+dữ liệu, gói vào thì ai cầm file cài cũng có nó. Đặt ở thư mục dữ liệu thì file
+còn sống sót qua các lần cập nhật app.
+
+`npm run check` ở thư mục gốc cảnh báo đúng trường hợp này.
+
+---
+
 ## 5. Gỡ lỗi
 
 ### Bước đầu tiên luôn là `/api/debug/<videoId>`
@@ -322,12 +420,19 @@ Cách đọc:
 - Trình phát: 3 chế độ (DASH / 2 luồng / luồng gộp), phím tắt kiểu YouTube,
   chọn chất lượng, tốc độ, phụ đề, rạp hát, màn hình kết thúc có đếm ngược
 - Bình luận, lịch sử, xem sau, đã thích, kênh đăng ký (lưu ở máy)
-- Tài khoản nội bộ: scrypt + cookie httpOnly, SQLite
-- Trang cài đặt, bảng phím tắt mở bằng `?`
+- Tài khoản nội bộ: scrypt + cookie httpOnly
+- **Kho dữ liệu chọn được: Turso (cloud) / SQLite / JSON** — xem 4.19
+- Trang cài đặt: tìm kiếm cài đặt, khôi phục mặc định, gộp mục dữ liệu
+- **Chủ đề màu**: 4 bộ dựng sẵn + tự tạo bộ riêng, chỉnh từng màu — xem 4.17
+- Xem trước khi rê chuột lên thumbnail — xem 4.18
+- Bảng phím tắt mở bằng `?`
+- Cửa sổ nổi: tuỳ chọn giữ hay không giữ video mới trong cửa sổ nổi
+- `npm run build` / `npm run check` ở thư mục gốc
 
 ### Chưa xong / chưa kiểm chứng
 
-- **`youpe-desktop` chưa build thử lần nào** — code viết cẩn thận nhưng chưa chạy
+- **`youpe-desktop` chạy được ở chế độ dev trên Linux**, nhưng bản đóng gói
+  (AppImage / .deb) chưa cài thử
 - **`youpe-tv` chưa biên dịch thử** — không có Android SDK ở môi trường phát triển;
   nhiều khả năng có lỗi vặt ở API của `tv-material`, thư viện này hay đổi
 - App TV chưa nối vào tài khoản và lịch sử (server đã có sẵn API)
@@ -338,33 +443,71 @@ Cách đọc:
 - **Tốc độ phụ thuộc yt-dlp.** Video chưa cache có thể mất 5–13 giây. Hướng cắt tiếp
   theo: giữ một tiến trình Python thường trú thay vì spawn `.exe` mỗi lần
   (bản `.exe` là gói PyInstaller, riêng việc khởi động đã mất 1–4 giây trên Windows).
+- **yt-dlp cũ là mất chất lượng.** Binary quá vài tuần thì YouTube ngừng trả luồng
+  adaptive, chỉ còn itag 18 — biểu hiện ra ngoài là "video nào cũng 360p, không
+  chọn được chất lượng". `prepare-web.mjs` nay tự tải bản mới trước khi đóng gói,
+  nhưng **bản đã cài trên máy người dùng vẫn cứ già đi** — chưa có cơ chế tự cập nhật.
 - **IP datacenter dễ bị chặn hơn IP nhà.** Lên VPS rất có thể gặp lại bức tường SABR.
 - **Chế độ 2 luồng không có ABR**, mạng yếu là giật chứ không tự hạ chất lượng.
+- **Ghi lên Turso chưa gộp theo lô.** Gói miễn phí cho 10 triệu dòng ghi/tháng —
+  trần này chạm trước dung lượng rất xa. Ngày nào đưa tiến độ xem lên cloud thì
+  phải gộp trước, ghi mỗi vài giây cho mỗi video là đủ đốt sạch.
 
 ---
 
 ## 7. Lệnh hay dùng
 
 ```bash
-# Windows — cách dễ nhất
-# bấm đúp youpe-web\create-shortcut.bat, rồi bấm đúp shortcut "youpe" trên Desktop
+# ---- Ở THƯ MỤC GỐC (cách gọn nhất) ----
+npm run dev            # web + Electron
+npm run check          # kiểm tra mà không đóng gói
+npm run build          # kiểm tra rồi đóng gói cho hệ đang chạy
+npm run db:check       # thử kết nối Turso
+npm run update:ytdlp
 
-# Web
+# ---- Web ----
 cd youpe-web
 npm install
 npm run setup:ytdlp          # bắt buộc
 npm run dev                  # hoặc: npx next dev -H 0.0.0.0 để TV box gọi được
 npm run build && npm start   # đo tốc độ thật
 
-# Desktop
+# ---- Desktop ----
 cd youpe-desktop
 npm install
-npm run dev                  # cần youpe-web đang chạy ở cổng 3000
-npm run dist:win             # đóng gói
+npm run dev                  # tự khởi động youpe-web nếu chưa chạy
+npm run dist:linux           # hoặc dist:win / dist:mac
 
-# Android TV — mở bằng Android Studio
+# ---- Android TV — mở bằng Android Studio ----
 adb connect 192.168.1.20:5555
 ```
+
+`npm run build` ở gốc kiểm tra Node, thư viện, kiểu dữ liệu, tuổi yt-dlp và cấu
+hình Turso **trước khi** gọi electron-builder. Lý do: những thứ làm hỏng bản cài
+đều không làm build thất bại — thiếu cấu hình Turso thì app vẫn chạy, chỉ ghi vào
+chỗ khác; yt-dlp cũ thì vẫn phát video, chỉ kẹt 360p.
+
+### Cấu hình Turso
+
+Tạo database miễn phí ở <https://turso.tech> (hoặc `turso db create youpe --location sin`),
+lấy URL và token, rồi:
+
+```bash
+# lúc phát triển
+cat >> youpe-web/.env.local <<'EOF'
+TURSO_DATABASE_URL=libsql://<tên>-<tài khoản>.turso.io
+TURSO_AUTH_TOKEN=ey...
+EOF
+
+# cho bản đóng gói — xem 4.20 để biết vì sao phải làm riêng
+mkdir -p ~/.config/youpe/data
+cp youpe-web/.env.local ~/.config/youpe/data/youpe.env
+```
+
+Không cần đặt `DB_DRIVER`; hễ thấy `TURSO_DATABASE_URL` là tự chuyển. Bảng dựng tự
+động lần chạy đầu. Xoá hai biến đi là quay về SQLite trên máy.
+
+Kiểm chứng: `npm run db:check`, rồi `turso db shell youpe "SELECT email FROM users"`.
 
 ---
 
@@ -375,3 +518,60 @@ adb connect 192.168.1.20:5555
 - **Không đẩy `data/` lên git** — chứa mật khẩu đã băm và lịch sử người dùng.
 - **Không đẩy `.env`** — có thể chứa đường dẫn cookie trình duyệt.
 - Cả hai đã nằm trong `.gitignore` ở gốc.
+
+---
+
+## 9. Nhật ký tiến độ
+
+Mới nhất ở trên cùng. Mỗi lần làm xong một đợt thì thêm một mục — ghi **đã làm gì,
+vì sao, và còn nợ gì**. Chi tiết kỹ thuật thì viết vào mục 4 rồi trỏ tới, đừng
+nhét hết vào đây.
+
+### 10/08/2026 — Chủ đề màu, sửa xem trước, đưa dữ liệu lên Turso
+
+**Cửa sổ nổi.** Thêm tuỳ chọn `keepPipOnVideoChange`: đang xem ở cửa sổ nổi mà đổi
+video thì video mới có tự mở lại trong cửa sổ nổi hay không. Trước đây hành vi này
+cứng, không tắt được.
+
+**Trang Cài đặt dựng lại.** Gom các dòng vào một thẻ liền có đường kẻ ngăn thay vì
+từng khối rời; bấm cả dòng là bật/tắt được; thêm ô tìm kiếm cài đặt (bỏ dấu được),
+nút khôi phục mặc định, và gộp mục Dữ liệu kèm tổng dung lượng đang chiếm.
+
+Một chi tiết đáng nhớ: công tắc dùng `div role="switch"` chứ **không** dùng
+`button`, vì CSS chung có `button:active { transform: scale(.94) }` — để `button`
+thì cả dòng dài co giật mỗi lần bấm.
+
+**Hệ thống chủ đề màu** (mục 4.17). Toàn bộ bảng màu chuyển sang biến CSS. Bốn bộ
+dựng sẵn: Mặc định, Cổ phong · Giấy cũ, Cổ phong · Mực đêm, Cổ phong · Hoa linh.
+Người dùng nhân bản rồi chỉnh từng màu, lưu nhiều bộ. Đã dọn khoảng 25 chỗ màu
+cứng (`bg-[#3f3f3f]`, `hover:bg-white/90`, `bg-white text-black`…) sang token, nếu
+không thì chủ đề sáng có nút trắng trên nền kem.
+
+**Xem trước khi rê chuột** (mục 4.18). Ba nguyên nhân chồng nhau, đã gỡ cả ba.
+
+**Kho dữ liệu lên cloud** (mục 4.19, 4.20). Chốt Turso vì lược đồ SQLite dùng lại
+nguyên vẹn. Việc tốn công nhất không phải viết driver mà là **chuyển lớp `Store`
+sang bất đồng bộ** — làm theo cách backend được phép trả thẳng giá trị, nên
+`db-sqlite.ts` và `db-json.ts` không phải sửa. Đã chạy thử toàn bộ SQL của driver
+trên file SQLite local trước khi cắm token thật.
+
+**Đóng gói.** `prepare-web.mjs` nay tải yt-dlp mới nhất trước khi gói và cảnh báo
+nếu binary quá 30 ngày tuổi. Thêm `npm run build` / `npm run check` ở thư mục gốc
+(`scripts/build.mjs`).
+
+**Gộp tài liệu.** `docs/DB-CLOUD.md` và `docs/TURSO.md` bị xoá, nội dung dồn hết
+vào file này. Trước đó ba file cùng nói về Turso, đọc lại không biết cái nào còn
+đúng.
+
+**Còn nợ sau đợt này:**
+
+- yt-dlp trên máy phát triển đang là bản 2026.07.04 (37 ngày tuổi) — **đây là lý do
+  hiện tại video nào cũng chỉ có 360p**. Chạy `npm run update:ytdlp`, chưa ăn thua
+  thì đặt `YTDLP_COOKIES_FROM_BROWSER=chrome` (phải đóng hẳn trình duyệt trước).
+- Bản đã cài trên máy người dùng vẫn cứ già đi — chưa có cơ chế tự cập nhật yt-dlp
+  theo lịch, cũng chưa có nút "Cập nhật yt-dlp" trong Cài đặt.
+- `pruneSessions()` chưa được gọi theo lịch ở bản Turso.
+- Chưa gộp ghi theo lô trước khi đưa tiến độ xem lên cloud.
+- Chữ có chân của chủ đề cổ phong rơi về serif hệ thống trên Linux (chưa gói kèm
+  font Noto Serif).
+- Bản đóng gói Linux chưa cài thử.

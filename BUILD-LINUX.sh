@@ -30,6 +30,9 @@ echo "    5. Build ban web roi dong goi thanh AppImage va .deb"
 echo
 echo "  Lan dau mat khoang 5-15 phut tuy toc do mang."
 echo
+echo "  Da quen thuoc roi thi dung thang:  npm run build"
+echo "  (kiem tra truoc rui moi dong goi, chay duoc tren ca Windows va macOS)"
+echo
 
 # Tự động nạp NVM / Node nếu NVM được cài đặt trong máy
 if [ -s "$HOME/.nvm/nvm.sh" ]; then
@@ -69,9 +72,11 @@ else
 fi
 
 # ---------- 3. yt-dlp ----------
+# Khong bo qua khi da co: buoc dong goi se tai lai ban moi nhat. Binary cu vai
+# tuan la YouTube khong tra ve luong adaptive nua, nguoi dung ket o 360p.
 say "[2/4] yt-dlp (ban Linux)…"
 if [ -x bin/yt-dlp ]; then
-  echo "      da co, bo qua"
+  echo "      da co ban $(./bin/yt-dlp --version 2>/dev/null || echo '?') — buoc dong goi se cap nhat"
 else
   npm run setup:ytdlp
 fi

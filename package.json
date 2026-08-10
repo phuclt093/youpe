@@ -1,0 +1,15 @@
+{
+  "name": "youpe",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Lối vào chung cho cả kho — chạy được từ thư mục gốc, khỏi phải nhớ cd vào đâu",
+  "scripts": {
+    "dev": "npm --prefix youpe-desktop run dev",
+    "dev:web": "npm --prefix youpe-web run dev",
+    "build": "node scripts/build.mjs",
+    "check": "node scripts/build.mjs --check",
+    "typecheck": "npm --prefix youpe-web run typecheck",
+    "db:check": "npm --prefix youpe-web run db:check",
+    "update:ytdlp": "npm --prefix youpe-web run update:ytdlp"
+  }
+}

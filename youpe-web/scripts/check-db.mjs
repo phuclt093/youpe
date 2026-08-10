@@ -40,7 +40,7 @@ if (!url) {
   console.error('  Thêm vào youpe-web/.env.local:');
   console.error('    TURSO_DATABASE_URL=libsql://ten-db-tai-khoan.turso.io');
   console.error('    TURSO_AUTH_TOKEN=ey...');
-  console.error('  Các bước lấy hai giá trị này: docs/DB-CLOUD.md');
+  console.error('  Các bước lấy hai giá trị này: docs/CONTEXT.md mục 7');
   process.exit(1);
 }
 

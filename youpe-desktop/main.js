@@ -88,6 +88,40 @@ function ytdlpPath() {
 }
 
 /**
+ * Cấu hình riêng của từng máy, đọc từ `<thư mục dữ liệu>/youpe.env`.
+ *
+ * Dùng để chứa những thứ như thông tin kết nối Turso. Vì sao không nhét thẳng
+ * vào bản cài:
+ *
+ *   - **Bảo mật.** Token Turso là quyền đọc ghi toàn bộ cơ sở dữ liệu. Gói vào
+ *     file cài đặt thì ai cầm file cài cũng có nó.
+ *   - **Bản standalone của Next không mang theo `.env.local`.** File đó nằm ở
+ *     thư mục youpe-web lúc phát triển, còn `prepare-web.mjs` chỉ chép
+ *     `.next/standalone` sang. Chạy dev thì Next tự đọc nên mọi thứ có vẻ ổn,
+ *     đóng gói xong mới lặng lẽ rơi về SQLite trên máy — dữ liệu vẫn ghi bình
+ *     thường, chỉ là ghi vào chỗ khác, và phải tới lúc mở máy thứ hai mới biết.
+ *
+ * Đặt ở thư mục dữ liệu thì file sống sót qua các lần cập nhật app, và mỗi máy
+ * tự khai token của mình.
+ */
+function userEnv() {
+  const file = path.join(userDataDir(), 'youpe.env');
+  if (!fs.existsSync(file)) return {};
+
+  const out = {};
+  for (const line of fs.readFileSync(file, 'utf-8').split('\n')) {
+    const m = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/.exec(line);
+    if (!m) continue; // dòng trống và dòng ghi chú (#) tự rơi vào đây
+    const value = m[2].trim().replace(/^["']|["']$/g, '');
+    if (value) out[m[1]] = value;
+  }
+
+  const keys = Object.keys(out);
+  if (keys.length) console.log(`[youpe] đọc ${keys.length} biến từ ${file}: ${keys.join(', ')}`);
+  return out;
+}
+
+/**
  * Cookie cho yt-dlp, để giảm lỗi "Please sign in" / "confirm you're not a bot".
  *
  * Ưu tiên theo thứ tự:
@@ -158,6 +192,8 @@ async function startServer() {
       YOUPE_DATA_DIR: userDataDir(),
       YTDLP_PATH: ytdlpPath(),
       ...ytdlpCookieEnv(),
+      // đặt sau cùng: cấu hình của máy này được quyền đè lên mọi mặc định ở trên
+      ...userEnv(),
     },
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
