@@ -8,12 +8,14 @@
 #   chmod +x BUILD-LINUX.sh
 #   ./BUILD-LINUX.sh
 #
+# File này chỉ là vỏ bọc quanh `npm run build`, thêm phần tự nạp NVM và mở
+# thư mục kết quả. Quen tay rồi thì gõ thẳng `npm run build` cũng vậy.
+#
 set -euo pipefail
 
 cd "$(dirname "$0")"
 ROOT="$PWD"
 
-say() { printf '\n\033[1;36m%s\033[0m\n' "$*"; }
 die() { printf '\n\033[1;31m[X] %s\033[0m\n\n' "$*" >&2; exit 1; }
 
 echo
@@ -22,16 +24,13 @@ echo "    youpe  -  Build cho Linux Mint / Ubuntu"
 echo "  ============================================"
 echo
 echo "  Se lam lan luot:"
-echo "    1. Kiem tra Node"
-echo "    2. Cai thu vien cho youpe-web"
-echo "    3. Tai yt-dlp ban Linux"
-echo "    4. Cai thu vien cho youpe-desktop"
+echo "    1. Kiem tra Node va thu vien"
+echo "    2. Kiem tra loi kieu TypeScript"
+echo "    3. Tai yt-dlp ban moi nhat"
+echo "    4. Dong bo cau hinh Turso sang cho ban dong goi doc duoc"
 echo "    5. Build ban web roi dong goi thanh AppImage va .deb"
 echo
 echo "  Lan dau mat khoang 5-15 phut tuy toc do mang."
-echo
-echo "  Da quen thuoc roi thi dung thang:  npm run build"
-echo "  (kiem tra truoc rui moi dong goi, chay duoc tren ca Windows va macOS)"
 echo
 
 # Tự động nạp NVM / Node nếu NVM được cài đặt trong máy
@@ -40,72 +39,22 @@ if [ -s "$HOME/.nvm/nvm.sh" ]; then
   \. "$NVM_DIR/nvm.sh" 2>/dev/null || true
 fi
 if ! command -v node >/dev/null 2>&1; then
-  NVM_NODE="$(ls -d $HOME/.nvm/versions/node/v*/bin 2>/dev/null | tail -n 1 || true)"
-  if [ -n "$NVM_NODE" ]; then
-    export PATH="$NVM_NODE:$PATH"
-  fi
+  NVM_NODE="$(ls -d "$HOME"/.nvm/versions/node/v*/bin 2>/dev/null | tail -n 1 || true)"
+  [ -n "$NVM_NODE" ] && export PATH="$NVM_NODE:$PATH"
 fi
 
-# ---------- 1. Node ----------
 command -v node >/dev/null 2>&1 || die \
 "Chua cai Node.js.
 
      Mint / Ubuntu:  sudo apt install nodejs npm
      Ban moi hon:    https://nodejs.org (chon LTS)"
 
-NODE_MAJOR="$(node -p 'process.versions.node.split(".")[0]')"
-say "Node: $(node -v)"
-
-# node:sqlite chi co tu Node 22.5 tro len; thap hon thi server tu quay ve ban JSON
-if [ "$NODE_MAJOR" -lt 22 ]; then
-  echo "  [!] Node cu hon 22 — tai khoan se luu bang file JSON thay vi SQLite."
-  echo "      Van chay duoc, chi cham hon khi du lieu nhieu."
-fi
-
-# ---------- 2. thu vien cho web ----------
-say "[1/4] Thu vien cho youpe-web…"
-cd "$ROOT/youpe-web"
-if [ -d node_modules ]; then
-  echo "      da co, bo qua"
-else
-  npm install --no-audit --no-fund
-fi
-
-# ---------- 3. yt-dlp ----------
-# Khong bo qua khi da co: buoc dong goi se tai lai ban moi nhat. Binary cu vai
-# tuan la YouTube khong tra ve luong adaptive nua, nguoi dung ket o 360p.
-say "[2/4] yt-dlp (ban Linux)…"
-if [ -x bin/yt-dlp ]; then
-  echo "      da co ban $(./bin/yt-dlp --version 2>/dev/null || echo '?') — buoc dong goi se cap nhat"
-else
-  npm run setup:ytdlp
-fi
-
-# ---------- 4. thu vien cho desktop ----------
-say "[3/4] Thu vien cho youpe-desktop…"
-cd "$ROOT/youpe-desktop"
-if [ -d node_modules ]; then
-  echo "      da co, bo qua"
-else
-  npm install --no-audit --no-fund
-fi
-
-# ---------- 5. dong goi ----------
-say "[4/4] Build ban web va dong goi…"
-npm run dist:linux
+npm run build
 
 OUT="$ROOT/youpe-desktop/release"
 
 echo
-echo "  ============================================"
-echo "    XONG"
-echo "  ============================================"
-echo
-echo "  File nam trong:  $OUT"
-echo
-ls -1 "$OUT" 2>/dev/null | grep -Ei '\.(AppImage|deb)$' | sed 's/^/    /' || true
-echo
-echo "  Cai bang .deb (khuyen nghi — co trong menu ung dung):"
+echo "  Cai bang .deb (khuyen nghi - co trong menu ung dung):"
 echo "    sudo apt install $OUT/youpe_*_amd64.deb"
 echo
 echo "  Hoac chay thang AppImage, khong can cai:"

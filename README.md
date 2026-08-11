@@ -9,13 +9,25 @@ Xem YouTube không quảng cáo, giao diện bám sát YouTube.
 | `youpe-tv/` | App Android TV (Kotlin + Compose TV + Media3) |
 | `docs/CONTEXT.md` | **Đọc file này trước** — kiến trúc, quyết định, những hướng đã thất bại, nhật ký tiến độ |
 
-## Lệnh ở thư mục gốc
+## Đóng gói app desktop
+
+Bấm đúp file tương ứng với máy bạn đang dùng — **phải build trên chính hệ điều
+hành đó**, không build chéo được (xem `docs/LINUX.md`):
+
+| Máy | File |
+|---|---|
+| Windows | `BUILD-DESKTOP.bat` |
+| Linux | `BUILD-LINUX.sh` (`chmod +x` một lần) |
+| macOS | `BUILD-MAC.command` (`chmod +x` một lần) |
+
+Cả ba chỉ là vỏ bọc quanh cùng một lệnh, quen tay rồi thì gõ thẳng:
 
 ```bash
 npm run dev      # chạy web + Electron
 npm run check    # kiểm tra mọi thứ mà không đóng gói
 npm run build    # kiểm tra rồi đóng gói cho hệ đang chạy
 npm run db:check # thử kết nối Turso
+npm run link:db  # chép cấu hình Turso sang chỗ bản đóng gói đọc được
 ```
 
 ## Bắt đầu nhanh

@@ -11,9 +11,10 @@
  * trước còn hơn.
  */
 import { execSync, spawnSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { linkDb, readTurso, userEnvPath } from './link-db.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const web = path.join(root, 'youpe-web');
@@ -131,43 +132,28 @@ if (!version) {
 
 c.head('[5/5] Kho dữ liệu');
 
-/** Tìm một khoá trong file kiểu KEY=VALUE, bỏ qua dòng trống và dòng ghi chú */
-function envHas(file, key) {
-  if (!existsSync(file)) return false;
-  return readFileSync(file, 'utf-8')
-    .split('\n')
-    .some((l) => new RegExp(`^\\s*${key}\\s*=\\s*\\S`).test(l));
-}
+const devTurso = !!readTurso(path.join(web, '.env.local')).TURSO_DATABASE_URL;
+const runTurso = !!readTurso(userEnvPath()).TURSO_DATABASE_URL;
 
-/** Nơi vỏ desktop đọc cấu hình riêng của từng máy — xem docs/CONTEXT.md mục 4.20 */
-function userEnvPath() {
-  const home = process.env.HOME || process.env.USERPROFILE || '';
-  if (process.platform === 'win32')
-    return path.join(process.env.APPDATA || home, 'youpe', 'data', 'youpe.env');
-  if (process.platform === 'darwin')
-    return path.join(home, 'Library', 'Application Support', 'youpe', 'data', 'youpe.env');
-  return path.join(process.env.XDG_CONFIG_HOME || path.join(home, '.config'), 'youpe', 'data', 'youpe.env');
-}
-
-const devEnv = envHas(path.join(web, '.env.local'), 'TURSO_DATABASE_URL');
-const runEnv = envHas(userEnvPath(), 'TURSO_DATABASE_URL');
-
-if (runEnv) {
-  c.ok('Turso: bản đóng gói đã có cấu hình');
-} else if (devEnv) {
-  /*
-    Đây là cái bẫy đáng cảnh báo nhất của cả file. `.env.local` chỉ dùng lúc chạy
-    dev; bản standalone của Next không mang nó theo. Nên máy này chạy dev thì đồng
-    bộ ngon lành, cài bản đóng gói vào là lặng lẽ ghi xuống SQLite trên máy —
-    không lỗi, không cảnh báo, chỉ là dữ liệu chẳng đi đâu cả.
-  */
-  c.warn(
-    `Turso chỉ được cấu hình cho chế độ dev (.env.local).\n` +
-      `    Bản đóng gói sẽ KHÔNG đồng bộ — nó đọc ${userEnvPath()}\n` +
-      `    Chép hai dòng TURSO_* sang đó trước khi cài.`
-  );
-} else {
+if (!devTurso && !runTurso) {
   c.ok('Chưa cấu hình Turso — dùng SQLite trên máy (bình thường nếu bạn muốn vậy)');
+} else if (runTurso && !devTurso) {
+  c.ok('Turso: bản đóng gói đã có cấu hình');
+} else {
+  /*
+    Tự chép sang chỗ bản đóng gói đọc được, thay vì chỉ cảnh báo.
+
+    Đây là cái bẫy im lặng nhất của cả dự án: `.env.local` chỉ dùng lúc chạy dev,
+    bản standalone của Next không mang nó theo. Quên chép là bản cài vẫn chạy
+    ngon lành nhưng ghi xuống kho trên máy — không lỗi, không cảnh báo, và phải
+    tới lúc mở máy thứ hai mới phát hiện dữ liệu chẳng đi đâu cả.
+
+    Cảnh báo suông thì vẫn quên. Cấu hình là của chính người dùng, ghi vào thư
+    mục dữ liệu của chính họ, nên cứ làm luôn rồi báo lại.
+  */
+  const r = linkDb();
+  if (r.ok) c.ok(`Turso: đã đồng bộ cấu hình sang ${r.dest}`);
+  else c.warn(`Không chép được cấu hình Turso: ${r.reason}`);
 }
 
 /* ---------------- đóng gói ---------------- */

@@ -139,9 +139,23 @@ async function load(): Promise<{ store: Store; driver: string }> {
 /*
   Chỉ nạp một lần cho cả tiến trình. Giữ ở globalThis vì Next dev nạp lại module
   mỗi lần sửa file — không giữ thì mỗi lần lưu là mở thêm một kết nối.
+
+  **Tên khoá phải là duy nhất.** Bản đầu đặt là `__youpeStore`, trùng đúng khoá
+  mà `db-json.ts` đã dùng cho trạng thái trong RAM của nó. Hậu quả: `db.ts` gán
+  vào đó một Promise trước, rồi `db-json.ts` nạp sau đọc trúng Promise ấy, tưởng
+  là kho dữ liệu của mình, và `pruneSessions()` ở cuối module gọi
+  `Object.entries(promise.sessions)` → "Cannot convert undefined or null to
+  object" ngay lúc nạp module, trước khi chạm tới câu SQL nào.
+
+  Lỗi đó chỉ lộ ra ở bản đóng gói: Electron 33 chạy Node 20, không có
+  `node:sqlite`, nên lớp chọn backend mới rơi xuống `db-json.ts` — còn máy phát
+  triển chạy Node 22.5+ thì không bao giờ nạp file đó.
+
+  Khoá đang dùng: `__youpeStore` (db-json), `__youpeSqlite` (db-sqlite),
+  `__youpeTurso` + `__youpeTursoReady` (db-turso), `__youpeCacheLoaded` (sources).
 */
 const g = globalThis as any;
-const ready = (): Promise<{ store: Store; driver: string }> => (g.__youpeStore ??= load());
+const ready = (): Promise<{ store: Store; driver: string }> => (g.__youpeDbLoader ??= load());
 
 /** Backend nào đang chạy — chỉ dùng để hiển thị, nên mới trả Promise */
 export const getDbDriver = async () => (await ready()).driver;

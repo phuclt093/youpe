@@ -341,6 +341,19 @@ gọi. Backend được phép trả thẳng giá trị (`Async<T> = T | Promise<
 
 Ba điểm dễ vấp:
 
+- **Khoá `globalThis` phải là duy nhất tuyệt đối.** Từng đặt khoá của `db.ts`
+  trùng `__youpeStore` mà `db-json.ts` đã dùng. `db.ts` gán vào đó một Promise
+  trước, `db-json.ts` nạp sau đọc trúng Promise ấy tưởng là kho của mình, rồi
+  `pruneSessions()` ở cuối module gọi `Object.entries(promise.sessions)` →
+  `Cannot convert undefined or null to object` **ngay lúc nạp module**, chưa chạm
+  câu SQL nào. Hiện đang dùng: `__youpeDbLoader` (db.ts), `__youpeStore`
+  (db-json), `__youpeSqlite`, `__youpeTurso` + `__youpeTursoReady`,
+  `__youpeCacheLoaded` (sources).
+- **Electron 33 chạy Node 20.18 — không có `node:sqlite`.** Nên bản đóng gói
+  *không bao giờ* dùng driver sqlite: có Turso thì dùng Turso, không thì rơi
+  xuống JSON. Máy phát triển chạy Node 22.5+ nên đi đường sqlite. Hệ quả: **hai
+  môi trường chạy hai driver khác nhau**, và lỗi chỉ ở đường JSON sẽ không bao
+  giờ lộ ra lúc dev. Đây chính là cách cái bẫy globalThis ở trên trốn được.
 - **Backend nạp bằng `await import()`, tuyệt đối không dùng `require()`.** Bản đầu
   dùng `require('./db-turso')`: module nạp xong, in ra "Turso sẵn sàng", nhưng đối
   tượng trả về **không có hàm nào cả** — lần chạm database thật đầu tiên ném
@@ -516,6 +529,7 @@ npm run dev            # web + Electron
 npm run check          # kiểm tra mà không đóng gói
 npm run build          # kiểm tra rồi đóng gói cho hệ đang chạy
 npm run db:check       # thử kết nối Turso
+npm run link:db        # chép cấu hình Turso sang chỗ bản đóng gói đọc được
 npm run probe -- <id>  # dò client YouTube nào còn trả luồng adaptive
 npm run icon           # sinh lại icon app từ youpe-desktop/build/icon.svg
 npm run update:ytdlp
@@ -566,6 +580,22 @@ không đồng bộ, xem mục 4.20:
 |---|---|---|---|
 | `.env.local` | `npm run dev` | `youpe-web\.env.local` | `youpe-web/.env.local` |
 | `youpe.env` | bản đã cài | `%APPDATA%\youpe\data\youpe.env` | `~/.config/youpe/data/youpe.env` |
+
+Chỗ thứ hai **không phải chép tay, cũng không phải nhớ**: `npm run build` tự làm
+khi thấy `.env.local` có Turso mà máy chưa có `youpe.env`. Muốn chạy riêng thì:
+
+```bash
+npm run link:db
+```
+
+Lệnh này chạy được trên cả ba hệ điều hành, tự ghi vào đúng thư mục của hệ đang
+chạy.
+
+Nó chỉ lấy hai khoá `TURSO_*` chứ không chép cả `.env.local`, vì file đó có thể
+chứa đường dẫn cookie trình duyệt hay tuỳ chọn chỉ đúng với máy đang phát triển.
+Đổi token thì sửa `.env.local` rồi chạy lại lệnh này.
+
+Phần còn lại của mục này là cách làm tay, giữ lại phòng khi cần.
 
 **Linux / macOS:**
 
