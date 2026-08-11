@@ -4,6 +4,7 @@ import {
   createContext, useCallback, useContext, useEffect, useMemo, useState,
 } from 'react';
 import * as store from '@/lib/storage';
+import { apiFetch, onApiBaseChange } from '@/lib/api';
 
 export type User = { id: number; email: string; name: string };
 
@@ -26,7 +27,7 @@ const AuthCtx = createContext<Ctx>({
 export const useAuth = () => useContext(AuthCtx);
 
 async function post(url: string, body?: any) {
-  const r = await fetch(url, {
+  const r = await apiFetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: body ? JSON.stringify(body) : undefined,
@@ -51,12 +52,37 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     }
   }, []);
 
+  /**
+   * Hỏi lại "tôi là ai" mỗi khi đổi máy chủ đồng bộ.
+   *
+   * Không có phần lắng nghe đó thì sau khi đổi địa chỉ trong Cài đặt, giao diện
+   * vẫn hiện tài khoản của server cũ cho tới lần tải lại trang — trông như đang
+   * đăng nhập nhưng mọi thao tác lại đi tới server mới.
+   */
   useEffect(() => {
-    fetch('/api/auth/me')
-      .then((r) => r.json())
-      .then((j) => apply(j.user ?? null))
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    let dead = false;
+
+    const refresh = () => {
+      setLoading(true);
+      apiFetch('/api/auth/me')
+        .then((r) => r.json())
+        .then((j) => {
+          if (!dead) return apply(j.user ?? null);
+        })
+        .catch(() => {
+          if (!dead) return apply(null);
+        })
+        .finally(() => {
+          if (!dead) setLoading(false);
+        });
+    };
+
+    refresh();
+    const off = onApiBaseChange(refresh);
+    return () => {
+      dead = true;
+      off();
+    };
   }, [apply]);
 
   const value = useMemo<Ctx>(

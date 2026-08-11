@@ -1,6 +1,7 @@
 'use client';
 
 import type { VideoItem } from './types';
+import { apiFetch } from './api';
 
 export type StoredVideo = VideoItem & { savedAt: number };
 
@@ -54,7 +55,7 @@ export function add(key: StoreKey, v: VideoItem) {
 
   if (signedIn)
     quiet(
-      fetch('/api/library', {
+      apiFetch('/api/library', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ list: key, video: v }),
@@ -65,7 +66,7 @@ export function add(key: StoreKey, v: VideoItem) {
 export function remove(key: StoreKey, id: string) {
   write(key, read(key).filter((v) => v.id !== id));
   if (signedIn)
-    quiet(fetch(`/api/library?list=${key}&videoId=${encodeURIComponent(id)}`, { method: 'DELETE' }));
+    quiet(apiFetch(`/api/library?list=${key}&videoId=${encodeURIComponent(id)}`, { method: 'DELETE' }));
 }
 
 export function toggle(key: StoreKey, v: VideoItem): boolean {
@@ -79,13 +80,13 @@ export function toggle(key: StoreKey, v: VideoItem): boolean {
 
 export function clear(key: StoreKey) {
   write(key, []);
-  if (signedIn) quiet(fetch(`/api/library?list=${key}`, { method: 'DELETE' }));
+  if (signedIn) quiet(apiFetch(`/api/library?list=${key}`, { method: 'DELETE' }));
 }
 
 /** Kéo dữ liệu từ server về sau khi đăng nhập, ghi đè cache cục bộ */
 export async function pullFromServer(key: StoreKey): Promise<StoredVideo[]> {
   try {
-    const r = await fetch(`/api/library?list=${key}`);
+    const r = await apiFetch(`/api/library?list=${key}`);
     if (!r.ok) return read(key);
     const j = await r.json();
     const items: StoredVideo[] = j.items ?? [];
@@ -102,7 +103,7 @@ export async function pushAllToServer() {
   for (const key of Object.keys(KEYS) as StoreKey[]) {
     for (const v of read(key).slice(0, 200)) {
       await quiet(
-        fetch('/api/library', {
+        apiFetch('/api/library', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ list: key, video: v }),

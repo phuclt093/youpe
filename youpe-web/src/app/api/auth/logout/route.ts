@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { destroySession, SESSION_COOKIE } from '@/lib/auth';
+import { destroySession, sessionCookieOptions, SESSION_COOKIE } from '@/lib/auth';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -11,6 +11,11 @@ export async function POST() {
   if (token) await destroySession(token);
 
   const res = NextResponse.json({ ok: true });
-  res.cookies.set(SESSION_COOKIE, '', { path: '/', expires: new Date(0) });
+  /*
+    Xoá cookie phải dùng đúng bộ thuộc tính lúc đặt. Ở chế độ server dùng chung,
+    cookie mang `SameSite=None; Secure`; xoá bằng bộ khác là trình duyệt coi đó là
+    một cookie khác và cookie cũ vẫn nằm nguyên — đăng xuất xong vẫn còn đăng nhập.
+  */
+  res.cookies.set(SESSION_COOKIE, '', { ...sessionCookieOptions(new Date(0)), expires: new Date(0) });
   return res;
 }

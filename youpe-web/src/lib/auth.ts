@@ -70,11 +70,30 @@ export async function currentUser(): Promise<User | null> {
   return userFromToken(jar.get(SESSION_COOKIE)?.value);
 }
 
+/**
+ * Server có đang phục vụ những bản youpe cài ở máy khác không.
+ *
+ * Cùng một mã nguồn chạy hai vai: server chạy ngay trên máy người dùng, và server
+ * dùng chung đặt trên mạng. Chỉ vai thứ hai mới cần cookie xuyên site, mà nhận ra
+ * vai nào thì cứ nhìn `YOUPE_ALLOW_ORIGINS` — có nó nghĩa là đang mở cho máy khác.
+ */
+const servingRemote = () => !!process.env.YOUPE_ALLOW_ORIGINS?.trim();
+
 export function sessionCookieOptions(expiresAt: Date) {
+  /*
+    `SameSite=Lax` chặn cookie đi kèm request xuyên site, nên ở chế độ server dùng
+    chung phải hạ xuống `None` — và trình duyệt chỉ chấp nhận `None` khi có
+    `Secure`, tức là **server bắt buộc chạy HTTPS**. Đây là ràng buộc của trình
+    duyệt, không phải lựa chọn.
+
+    Chế độ chạy trên máy thì giữ `Lax`: chặt hơn, và không đòi HTTPS.
+  */
+  const remote = servingRemote();
+
   return {
     httpOnly: true,
-    sameSite: 'lax' as const,
-    secure: process.env.NODE_ENV === 'production',
+    sameSite: remote ? ('none' as const) : ('lax' as const),
+    secure: remote || process.env.NODE_ENV === 'production',
     path: '/',
     expires: expiresAt,
   };

@@ -377,6 +377,55 @@ Ba điểm dễ vấp:
   Mỗi lần khởi động lại tiến trình là một lượt ghi, mà Turso tính tiền theo dòng
   ghi. Chưa có chỗ nào gọi nó theo lịch — việc còn nợ.
 
+### 4.19b Hai chế độ đồng bộ: trực tiếp và qua máy chủ
+
+Cùng một mã nguồn chạy được hai vai, khác nhau đúng một biến ở phía client
+(`src/lib/api.ts`):
+
+| | Địa chỉ máy chủ trống | Có địa chỉ |
+|---|---|---|
+| Tài khoản, thư viện | server trên máy → Turso | server của bạn → Turso |
+| Ai giữ token Turso | máy người dùng | chỉ server |
+| Feed, tìm kiếm, **video** | server trên máy | **vẫn là server trên máy** |
+
+**Chỉ tài khoản và thư viện đi xa.** Đây là lựa chọn có chủ đích:
+
+- Băng thông video là chi phí lớn nhất. Để nó đi thẳng từ máy người dùng tới
+  YouTube thì server của bạn chỉ chở vài KB dữ liệu thư viện.
+- yt-dlp vẫn chạy bằng IP nhà của từng người. Dồn lên máy chủ là đổi sang IP
+  datacenter — thứ YouTube chặn mạnh hơn hẳn (mục 3.1).
+
+Cái giá phải trả là gọi xuyên origin:
+
+- **Server bắt buộc chạy HTTPS.** Cookie phiên phải `SameSite=None`, mà trình
+  duyệt chỉ chấp nhận `None` khi có `Secure`. Đây là ràng buộc của trình duyệt.
+- `YOUPE_ALLOW_ORIGINS` bật CORS (`src/middleware.ts`) **và** đồng thời là cờ
+  nhận biết "đang làm server dùng chung" để `sessionCookieOptions` hạ `SameSite`.
+  Một biến, hai tác dụng — đặt nhầm trên máy cá nhân là cookie đòi HTTPS mà
+  không có, đăng nhập sẽ hỏng.
+- Giá trị `local` cho phép mọi `http://localhost:<cổng>`. Bắt buộc phải có cho
+  app desktop: vỏ Electron xin cổng trống mỗi lần khởi động nên origin đổi liên
+  tục, không thể liệt kê sẵn.
+- Đăng xuất phải xoá cookie bằng **đúng bộ thuộc tính lúc đặt**, nếu không trình
+  duyệt coi là cookie khác và cookie cũ vẫn nằm nguyên.
+
+Chưa đồng bộ: **tiến độ xem** vẫn nằm ở `localStorage`. Đưa lên phải gộp ghi
+theo lô trước, xem phần điểm yếu ở mục 6.
+
+**Chưa kiểm chứng:** middleware có đi theo bản `output: 'standalone'` hay không.
+Bản đóng gói desktop không cần — nó là *client*, middleware chỉ chạy ở phía server
+dùng chung. Nhưng nếu triển khai VPS bằng cách chép `.next/standalone` thì phải
+kiểm tra trước:
+
+```bash
+ls .next/standalone/.next/server/middleware-manifest.json
+curl -i -X OPTIONS https://<server>/api/auth/me -H 'Origin: http://localhost:9999' \
+  -H 'Access-Control-Request-Method: GET' | grep -i access-control
+```
+
+Không thấy header CORS thì chạy VPS bằng `npm run build && npm start` (không dùng
+standalone) là chắc ăn.
+
 ### 4.20 `.env.local` không đi theo bản đóng gói
 
 Cái bẫy im lặng nhất của cả dự án.
@@ -699,6 +748,18 @@ trước chưa tắt hẳn là chết với một dòng `EADDRINUSE` sau khi b�
 nó tự thử bind trước — hỏi `lsof` không đáng tin, tiến trình của user khác hoặc
 máy bật `hidepid` là trả về rỗng trong khi cổng vẫn bị giữ — bận thì chuyển sang
 cổng trống. Đặt `YOUPE_DEV_PORT` thì tôn trọng tuyệt đối, không tự đổi.
+
+**Chế độ máy chủ đồng bộ** (mục 4.19b). Thêm `src/lib/api.ts` và
+`src/middleware.ts`: điền địa chỉ server trong Cài đặt là tài khoản + thư viện đi
+tới đó, bỏ trống là chạy như cũ. Nhờ vậy máy mới chỉ cần cài app rồi đăng nhập —
+không phải dán token Turso lên từng máy nữa.
+
+Chỗ cắt cố ý đặt ở **tầng client** chứ không phải thêm một driver `db-remote`.
+Làm thành driver thì phải hiện `insertUser(email, passwordHash)` và
+`libraryList(userId)` ra thành endpoint HTTP; ai gọi được là đọc được dữ liệu của
+bất kỳ ai, muốn chặn lại phải nhúng một khoá chung vào app — tức là quay lại đúng
+bài toán token, chỉ đổi tên. Đi từ client thì server nhận request đã biết "ai"
+nhờ cookie phiên của chính người đó.
 
 **Gộp tài liệu.** `docs/DB-CLOUD.md` và `docs/TURSO.md` bị xoá, nội dung dồn hết
 vào file này. Trước đó ba file cùng nói về Turso, đọc lại không biết cái nào còn
