@@ -86,10 +86,36 @@ function open(): Client {
 const db: Client = g.__youpeTurso ?? (g.__youpeTurso = open());
 const ready = (): Promise<unknown> => g.__youpeTursoReady ?? Promise.resolve();
 
-/** Chờ bảng dựng xong rồi mới chạy — sau lần đầu thì Promise đã xong, gần như không tốn gì */
+/**
+ * Chờ bảng dựng xong rồi mới chạy — sau lần đầu thì Promise đã xong, gần như
+ * không tốn gì.
+ *
+ * Lỗi được gói lại kèm câu SQL. Thư viện libsql ném ra những câu như "Cannot
+ * convert undefined or null to object" mà không nói nó vấp ở đâu; không kèm SQL
+ * thì phải ngồi đoán trong mười mấy chỗ gọi.
+ */
 async function q(sql: string, args: any[] = []) {
   await ready();
-  return db.execute({ sql, args });
+  try {
+    return await db.execute({ sql, args });
+  } catch (e: any) {
+    throw new Error(`[turso] ${e?.message ?? e} — khi chạy: ${gon(sql)}`, { cause: e });
+  }
+}
+
+const gon = (sql: string) => sql.replace(/\s+/g, ' ').trim().slice(0, 80);
+
+/** Nhiều câu lệnh trong một vòng gọi mạng, cũng gói lỗi kèm SQL như `q()` */
+async function batched(stmts: { sql: string; args: any[] }[]) {
+  await ready();
+  try {
+    return await db.batch(stmts, 'write');
+  } catch (e: any) {
+    throw new Error(
+      `[turso] ${e?.message ?? e} — khi chạy lô: ${stmts.map((s) => gon(s.sql)).join(' | ')}`,
+      { cause: e }
+    );
+  }
 }
 
 /* ---------------- users ---------------- */
@@ -207,28 +233,24 @@ export async function libraryUpsert(userId: number, list: string, video: VideoIt
     thay vì hai. Với cơ sở dữ liệu trên máy thì chẳng khác gì, nhưng qua mạng thì
     mỗi vòng là vài chục mili giây, và `libraryUpsert` là hàm bị gọi nhiều nhất.
   */
-  await ready();
-  await db.batch(
-    [
-      {
-        sql: `INSERT INTO library (user_id, list, video_id, payload, saved_at)
-              VALUES (?, ?, ?, ?, ?)
-              ON CONFLICT(user_id, list, video_id)
-              DO UPDATE SET payload = excluded.payload, saved_at = excluded.saved_at`,
-        args: [userId, list, video.id, JSON.stringify(video), Date.now()],
-      },
-      {
-        sql: `DELETE FROM library
-              WHERE user_id = ? AND list = ? AND video_id NOT IN (
-                SELECT video_id FROM library
-                WHERE user_id = ? AND list = ?
-                ORDER BY saved_at DESC LIMIT ?
-              )`,
-        args: [userId, list, userId, list, MAX_PER_LIST],
-      },
-    ],
-    'write'
-  );
+  await batched([
+    {
+      sql: `INSERT INTO library (user_id, list, video_id, payload, saved_at)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(user_id, list, video_id)
+            DO UPDATE SET payload = excluded.payload, saved_at = excluded.saved_at`,
+      args: [userId, list, video.id, JSON.stringify(video), Date.now()],
+    },
+    {
+      sql: `DELETE FROM library
+            WHERE user_id = ? AND list = ? AND video_id NOT IN (
+              SELECT video_id FROM library
+              WHERE user_id = ? AND list = ?
+              ORDER BY saved_at DESC LIMIT ?
+            )`,
+      args: [userId, list, userId, list, MAX_PER_LIST],
+    },
+  ]);
 }
 
 export async function libraryRemove(userId: number, list: string, videoId: string) {

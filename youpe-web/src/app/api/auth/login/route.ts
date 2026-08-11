@@ -22,6 +22,7 @@ export async function POST(req: NextRequest) {
     res.cookies.set(SESSION_COOKIE, token, sessionCookieOptions(expiresAt));
     return res;
   } catch (e: any) {
+    console.error('[auth/login] hỏng:', e);
     return NextResponse.json({ error: e?.message ?? 'lỗi đăng nhập' }, { status: 500 });
   }
 }

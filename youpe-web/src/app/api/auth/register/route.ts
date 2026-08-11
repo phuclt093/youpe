@@ -25,6 +25,14 @@ export async function POST(req: NextRequest) {
     res.cookies.set(SESSION_COOKIE, token, sessionCookieOptions(expiresAt));
     return res;
   } catch (e: any) {
+    /*
+      In cả stack ra terminal.
+
+      Trước đây chỗ này chỉ trả `e.message` về cho trình duyệt rồi nuốt phần còn
+      lại. Gặp lỗi kiểu "Cannot convert undefined or null to object" thì câu đó
+      chẳng nói được nó xảy ra ở tầng nào — driver, thư viện, hay chính route này.
+    */
+    console.error('[auth/register] hỏng:', e);
     return NextResponse.json({ error: e?.message ?? 'lỗi đăng ký' }, { status: 500 });
   }
 }
