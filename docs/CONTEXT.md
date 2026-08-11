@@ -341,6 +341,17 @@ gọi. Backend được phép trả thẳng giá trị (`Async<T> = T | Promise<
 
 Ba điểm dễ vấp:
 
+- **Backend nạp bằng `await import()`, tuyệt đối không dùng `require()`.** Bản đầu
+  dùng `require('./db-turso')`: module nạp xong, in ra "Turso sẵn sàng", nhưng đối
+  tượng trả về **không có hàm nào cả** — lần chạm database thật đầu tiên ném
+  `store.findUserByEmailRow is not a function`. Lý do: `db-turso.ts` phụ thuộc
+  `@libsql/client/web`, một gói ESM thuần; có ESM trong cây phụ thuộc là webpack
+  biến module thành "async module" và `require()` không còn trả về bảng export.
+
+  Lỗi này nằm im rất lâu: server khởi động sạch, log đẹp, `/api/auth/me` vẫn 200
+  (vì chưa đăng nhập thì không chạm DB), chỉ nổ khi có người bấm Đăng ký. Nên
+  `db.ts` còn kiểm tra hình dạng module ngay lúc nạp (`asStore`) — thà hỏng ồn ào
+  lúc khởi động.
 - **`db-turso.ts` nhập từ `@libsql/client/web`, không phải `@libsql/client`.** Cửa
   vào mặc định kéo theo gói nhị phân biên dịch sẵn — đúng loại đã làm hỏng lần thử
   `better-sqlite3` (mục 3.3) và làm bản đóng gói phình ra. Bản `/web` thuần
@@ -652,6 +663,12 @@ trên file SQLite local trước khi cắm token thật.
 **Đóng gói.** `prepare-web.mjs` nay tải yt-dlp mới nhất trước khi gói và cảnh báo
 nếu binary quá 30 ngày tuổi. Thêm `npm run build` / `npm run check` ở thư mục gốc
 (`scripts/build.mjs`).
+
+**Chế độ dev tự né cổng bận.** `scripts/dev.mjs` ghim cứng cổng 3000; lần chạy
+trước chưa tắt hẳn là chết với một dòng `EADDRINUSE` sau khi bắt chờ 2 phút. Giờ
+nó tự thử bind trước — hỏi `lsof` không đáng tin, tiến trình của user khác hoặc
+máy bật `hidepid` là trả về rỗng trong khi cổng vẫn bị giữ — bận thì chuyển sang
+cổng trống. Đặt `YOUPE_DEV_PORT` thì tôn trọng tuyệt đối, không tự đổi.
 
 **Gộp tài liệu.** `docs/DB-CLOUD.md` và `docs/TURSO.md` bị xoá, nội dung dồn hết
 vào file này. Trước đó ba file cùng nói về Turso, đọc lại không biết cái nào còn

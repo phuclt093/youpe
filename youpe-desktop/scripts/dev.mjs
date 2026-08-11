@@ -11,6 +11,7 @@
  */
 import { spawn } from 'node:child_process';
 import http from 'node:http';
+import net from 'node:net';
 import path from 'node:path';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -19,8 +20,16 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '..');
 const web = path.resolve(root, '..', 'youpe-web');
 
-const PORT = Number(process.env.YOUPE_DEV_PORT ?? 3000);
-const URL = `http://localhost:${PORT}`;
+/** Người dùng chỉ định cổng thì tôn trọng tuyệt đối, không tự đổi */
+const FIXED_PORT = process.env.YOUPE_DEV_PORT ? Number(process.env.YOUPE_DEV_PORT) : null;
+
+let PORT = FIXED_PORT ?? 3000;
+let URL = `http://localhost:${PORT}`;
+
+const setPort = (p) => {
+  PORT = p;
+  URL = `http://localhost:${p}`;
+};
 
 const isWin = process.platform === 'win32';
 const npm = isWin ? 'npm.cmd' : 'npm';
@@ -35,6 +44,37 @@ function ping() {
     req.setTimeout(800, () => {
       req.destroy();
       resolve(false);
+    });
+  });
+}
+
+/**
+ * Cổng có trống không — thử chiếm chứ không đi hỏi `lsof`.
+ *
+ * Hỏi `lsof` thì không đáng tin: tiến trình của người dùng khác, hoặc máy bật
+ * `hidepid`, là nó trả về rỗng trong khi cổng vẫn đang bị giữ chặt. Tự bind một
+ * phát rồi nhả ra mới là câu trả lời thật.
+ *
+ * Bind vào `::` để trùng đúng cách Next lắng nghe (log lỗi của nó ghi `:::3000`),
+ * nếu không thì cổng bị chiếm ở IPv6 mà mình thử IPv4 lại tưởng là trống.
+ */
+function portFree(port) {
+  return new Promise((resolve) => {
+    const srv = net.createServer();
+    srv.unref();
+    srv.on('error', () => resolve(false));
+    srv.listen(port, '::', () => srv.close(() => resolve(true)));
+  });
+}
+
+function freePort() {
+  return new Promise((resolve, reject) => {
+    const srv = net.createServer();
+    srv.unref();
+    srv.on('error', reject);
+    srv.listen(0, '127.0.0.1', () => {
+      const { port } = srv.address();
+      srv.close(() => resolve(port));
     });
   });
 }
@@ -73,6 +113,28 @@ async function ensureWeb() {
     });
   }
 
+  /*
+    Tới đây nghĩa là ping thất bại: không có server youpe nào ở cổng này. Nhưng
+    cổng vẫn có thể đang bị thứ khác giữ — hay gặp nhất là chính lần chạy trước
+    chưa tắt hẳn sau khi đóng cửa sổ terminal.
+
+    Trước đây gặp cảnh này là chết hẳn với một dòng EADDRINUSE, rồi bắt người dùng
+    đi truy xem ai đang giữ cổng — mà `lsof` lắm lúc trả về rỗng nên truy cũng
+    chẳng ra. Vỏ desktop ở chế độ đóng gói vốn đã tự xin cổng trống rồi; chế độ
+    dev cứ ghim 3000 chỉ vì thói quen. Giờ thì tự né.
+  */
+  if (!(await portFree(PORT))) {
+    if (FIXED_PORT) {
+      console.error(
+        `✗ Cổng ${PORT} đang bị chiếm, mà bạn đã chỉ định cổng này qua YOUPE_DEV_PORT nên tôi không tự đổi.`
+      );
+      process.exit(1);
+    }
+    const next = await freePort();
+    console.log(`! Cổng ${PORT} đang bị chiếm, chuyển sang ${next}`);
+    setPort(next);
+  }
+
   console.log('→ Khởi động youpe-web...');
   webProc = spawn(npm, ['run', 'dev'], {
     cwd: web,
@@ -89,24 +151,20 @@ async function ensureWeb() {
    * điều gì, trong khi nguyên nhân đã nằm sờ sờ phía trên. Tệ hơn: cổng bị chiếm
    * thường là do chính lần chạy trước còn sót lại, nên người dùng dễ tưởng app hỏng.
    */
+  /*
+    Lưới an toàn. Cổng vừa được kiểm tra là trống ngay phía trên, nhưng giữa lúc
+    kiểm và lúc Next bind vẫn có kẽ hở để tiến trình khác chen vào. Hiếm, nhưng
+    nếu xảy ra thì báo ngay thay vì ngồi ping đủ 2 phút rồi mới nói "không phản hồi".
+  */
   let portBusy = false;
   const watch = (d) => {
-    const s = String(d);
-    if (!portBusy && /EADDRINUSE/.test(s)) {
-      portBusy = true;
-      console.error(
-        `\n✗ Cổng ${PORT} đang bị tiến trình khác chiếm — nhiều khả năng là lần chạy trước chưa tắt hẳn.\n\n` +
-          '  Xem ai đang giữ:\n' +
-          (isWin ? `    netstat -ano | findstr :${PORT}\n` : `    lsof -i :${PORT}\n`) +
-          '  Tắt nó:\n' +
-          (isWin
-            ? '    taskkill /PID <pid> /F\n'
-            : `    kill $(lsof -t -i:${PORT})\n`) +
-          `\n  Hoặc dùng cổng khác:  YOUPE_DEV_PORT=3100 npm run dev\n`
-      );
-      stopWeb();
-      process.exit(1);
-    }
+    if (portBusy || !/EADDRINUSE/.test(String(d))) return;
+    portBusy = true;
+    console.error(
+      `\n✗ Cổng ${PORT} bị chiếm mất ngay trước khi Next kịp dùng. Chạy lại lệnh là xong.\n`
+    );
+    stopWeb();
+    process.exit(1);
   };
 
   webProc.stdout.on('data', (d) => {

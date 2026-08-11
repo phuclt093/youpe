@@ -115,8 +115,15 @@ if (!version) {
   const d = /^(\d{4})\.(\d{2})\.(\d{2})/.exec(version);
   const days = d ? Math.floor((Date.now() - Date.UTC(+d[1], +d[2] - 1, +d[3])) / 86_400_000) : 0;
 
-  // Bước prepare:web tự tải bản mới, nên đây chỉ là thông tin — trừ khi tải hỏng
-  if (days > 30) c.warn(`Bản ${version} đã ${days} ngày tuổi. Đóng gói sẽ tải bản mới.`);
+  /*
+    Bước prepare:web luôn tải bản mới nhất, nên đây chỉ là thông tin.
+
+    Đừng đọc con số này thành "cần cập nhật": yt-dlp có lúc cả tháng không ra bản
+    ổn định mới, và bản cũ vẫn có thể đang là bản mới nhất. Đã đo ngày 10/08/2026 —
+    2026.07.04 lúc đó 37 ngày tuổi nhưng tải lại vẫn ra đúng nó. Video kẹt 360p thì
+    dùng `npm run probe` chứ đừng đổ cho tuổi của binary.
+  */
+  if (days > 30) c.warn(`Bản ${version} đã ${days} ngày tuổi — có thể đây vẫn là bản mới nhất.`);
   else c.ok(`${version} (${days} ngày tuổi)`);
 }
 

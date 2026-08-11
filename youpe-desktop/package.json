@@ -98,8 +98,5 @@
     "appImage": {
       "artifactName": "youpe-${version}-${arch}.AppImage"
     }
-  },
-  "dependencies": {
-    "youpe": "file:.."
   }
 }
