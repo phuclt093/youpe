@@ -1,7 +1,8 @@
 'use client';
 
 import type { VideoItem } from './types';
-import { apiFetch } from './api';
+import { remoteClear, remotePull, remotePushAll, remoteRemove, remoteUpsert } from './sync';
+export { setSignedIn } from './sync';
 
 export type StoredVideo = VideoItem & { savedAt: number };
 
@@ -18,11 +19,9 @@ export type StoreKey = keyof typeof KEYS;
  * Chưa đăng nhập  -> localStorage.
  * Đã đăng nhập    -> localStorage đóng vai cache, đồng thời ghi lên server.
  * Nhờ vậy giao diện phản hồi tức thì, không phải chờ mạng.
+ *
+ * Cách gọi API nằm ở `sync.ts` — dùng chung với kênh đăng ký và danh sách phát.
  */
-let signedIn = false;
-export function setSignedIn(v: boolean) {
-  signedIn = v;
-}
 
 function read(key: StoreKey): StoredVideo[] {
   if (typeof window === 'undefined') return [];
@@ -38,8 +37,6 @@ function write(key: StoreKey, list: StoredVideo[]) {
   window.dispatchEvent(new CustomEvent('youpe-store', { detail: key }));
 }
 
-const quiet = (p: Promise<any>) => p.catch(() => {});
-
 export function getList(key: StoreKey): StoredVideo[] {
   return read(key);
 }
@@ -53,20 +50,12 @@ export function add(key: StoreKey, v: VideoItem) {
   list.unshift({ ...v, savedAt: Date.now() });
   write(key, list);
 
-  if (signedIn)
-    quiet(
-      apiFetch('/api/library', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ list: key, video: v }),
-      })
-    );
+  remoteUpsert(key, v);
 }
 
 export function remove(key: StoreKey, id: string) {
   write(key, read(key).filter((v) => v.id !== id));
-  if (signedIn)
-    quiet(apiFetch(`/api/library?list=${key}&videoId=${encodeURIComponent(id)}`, { method: 'DELETE' }));
+  remoteRemove(key, id);
 }
 
 export function toggle(key: StoreKey, v: VideoItem): boolean {
@@ -80,35 +69,21 @@ export function toggle(key: StoreKey, v: VideoItem): boolean {
 
 export function clear(key: StoreKey) {
   write(key, []);
-  if (signedIn) quiet(apiFetch(`/api/library?list=${key}`, { method: 'DELETE' }));
+  remoteClear(key);
 }
 
 /** Kéo dữ liệu từ server về sau khi đăng nhập, ghi đè cache cục bộ */
 export async function pullFromServer(key: StoreKey): Promise<StoredVideo[]> {
-  try {
-    const r = await apiFetch(`/api/library?list=${key}`);
-    if (!r.ok) return read(key);
-    const j = await r.json();
-    const items: StoredVideo[] = j.items ?? [];
-    localStorage.setItem(KEYS[key], JSON.stringify(items));
-    window.dispatchEvent(new CustomEvent('youpe-store', { detail: key }));
-    return items;
-  } catch {
-    return read(key);
-  }
+  const items = (await remotePull(key)) as StoredVideo[];
+  if (!items.length) return read(key);
+  localStorage.setItem(KEYS[key], JSON.stringify(items));
+  window.dispatchEvent(new CustomEvent('youpe-store', { detail: key }));
+  return items;
 }
 
 /** Đẩy dữ liệu đang có ở máy lên server — gọi ngay sau khi đăng nhập lần đầu */
 export async function pushAllToServer() {
   for (const key of Object.keys(KEYS) as StoreKey[]) {
-    for (const v of read(key).slice(0, 200)) {
-      await quiet(
-        apiFetch('/api/library', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ list: key, video: v }),
-        })
-      );
-    }
+    await remotePushAll(key, read(key));
   }
 }

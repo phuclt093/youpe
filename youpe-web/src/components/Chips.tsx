@@ -80,7 +80,7 @@ export default function Chips({
               onClick={() => onPick(c.key)}
               className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium ${
                 active === c.key
-                  ? 'bg-yt-text text-yt-bg'
+                  ? 'grad-accent text-yt-bg shadow-sm'
                   : 'bg-yt-chip text-yt-text hover:bg-yt-chip2'
               }`}
             >

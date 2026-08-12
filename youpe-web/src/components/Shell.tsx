@@ -44,11 +44,22 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       <Header onToggleMenu={() => setOpen((o) => !o)} />
       <Sidebar open={open} mini={false} />
       {showMini && <Sidebar open={false} mini />}
+      {/*
+        Lớp phủ duy nhất của cả app — `Sidebar.tsx` từng vẽ thêm một lớp nữa và
+        hai cái chồng lên nhau thành gần 80% đen.
+
+        `z-30` để nằm **dưới** sidebar (`z-40`). Đây chính là chỗ từng hỏng: lớp
+        phủ để z-40 còn sidebar tụt xuống z-30 ở khoảng 1024–1280px, nên lớp phủ
+        đè lên menu và nuốt mất con lăn chuột.
+
+        Làm mờ nhẹ thay vì đen đặc: vẫn đủ tách nền, mà còn nhìn được nội dung
+        phía sau nên đỡ cảm giác bị chặn.
+      */}
       {open && (
         <button
           aria-label="Đóng menu"
           onClick={() => setOpen(false)}
-          className="fixed inset-0 top-14 z-40 bg-black/60 xl:hidden"
+          className="fixed inset-0 top-14 z-30 bg-black/35 backdrop-blur-[2px] xl:hidden"
         />
       )}
       <main

@@ -4,6 +4,8 @@ import {
   createContext, useCallback, useContext, useEffect, useMemo, useState,
 } from 'react';
 import * as store from '@/lib/storage';
+import { pullSubs, pushSubs } from '@/lib/subs';
+import { pullPlaylists, pushPlaylists } from '@/lib/playlists';
 import { apiFetch, onApiBaseChange } from '@/lib/api';
 
 export type User = { id: number; email: string; name: string };
@@ -44,12 +46,26 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   const apply = useCallback(async (u: User | null, firstLogin = false) => {
     setUser(u);
     store.setSignedIn(!!u);
-    if (u) {
-      if (firstLogin) await store.pushAllToServer();
-      await Promise.all(
-        (['history', 'later', 'liked', 'playlists'] as const).map((k) => store.pullFromServer(k))
-      );
+    if (!u) return;
+
+    /*
+      Đẩy trước rồi mới kéo.
+
+      Ngược lại thì những gì vừa làm khi chưa đăng nhập sẽ bị bản trên server ghi
+      đè mất. Đẩy trước nghĩa là hai bên hợp lại, bên nào mới hơn thì thắng ở
+      từng mục — đủ tốt cho một app cá nhân, khỏi cần cơ chế trộn cầu kỳ.
+    */
+    if (firstLogin) {
+      await store.pushAllToServer();
+      await pushSubs();
+      await pushPlaylists();
     }
+
+    await Promise.all([
+      ...(['history', 'later', 'liked'] as const).map((k) => store.pullFromServer(k)),
+      pullSubs(),
+      pullPlaylists(),
+    ]);
   }, []);
 
   /**

@@ -409,6 +409,23 @@ Cái giá phải trả là gọi xuyên origin:
 - Đăng xuất phải xoá cookie bằng **đúng bộ thuộc tính lúc đặt**, nếu không trình
   duyệt coi là cookie khác và cookie cũ vẫn nằm nguyên.
 
+Những gì đồng bộ theo tài khoản: **lịch sử, xem sau, đã thích, kênh đăng ký,
+danh sách phát**. Tất cả nằm chung bảng `library` — bảng đó thực chất là "danh
+sách các thứ có id", không riêng gì video, nên kênh và danh sách phát nhét vừa y
+như cũ mà khỏi dựng thêm bảng.
+
+Cách gọi API gom ở `src/lib/sync.ts`. Trước đây chỉ `storage.ts` biết đường gọi,
+nên `subs.ts` và `playlists.ts` đứng ngoài và dữ liệu chỉ nằm ở máy — đăng nhập ở
+máy khác là mất sạch kênh đăng ký dù lịch sử vẫn về đủ. Thêm loại mới bây giờ chỉ
+là thêm một cái tên vào `ListName` và vào `LISTS` của route.
+
+Hai chỗ cần giữ đúng:
+
+- **Đẩy trước rồi mới kéo** khi đăng nhập (`AuthProvider`). Ngược lại thì những
+  gì làm lúc chưa đăng nhập bị bản trên server ghi đè mất.
+- Route nhận **cả `item` lẫn `video`** trong body. `video` là tên cũ và app TV
+  vẫn đang gửi bằng tên đó.
+
 Chưa đồng bộ: **tiến độ xem** vẫn nằm ở `localStorage`. Đưa lên phải gộp ghi
 theo lô trước, xem phần điểm yếu ở mục 6.
 
@@ -425,6 +442,51 @@ curl -i -X OPTIONS https://<server>/api/auth/me -H 'Origin: http://localhost:999
 
 Không thấy header CORS thì chạy VPS bằng `npm run build && npm start` (không dùng
 standalone) là chắc ăn.
+
+### 4.19c Điểm nhấn chuyển sắc, và vì sao logo phải đổi
+
+Mọi gradient dựng từ **hai màu nhấn của chủ đề đang bật** (`--yt-red` và
+`--yt-blue`), không viết mã màu cứng. Nhờ vậy nó tự hợp với cả sáu bộ màu: đỏ→xanh
+ở bộ mặc định, son→ngọc ở Giấy cũ, hồng→ngọc ở Hoa linh. Viết cứng một cặp đẹp
+trên nền tối thì sang bộ Giấy cũ sẽ chói như đèn nháy.
+
+Các lớp ở `globals.css`: `.grad-accent`, `.grad-text`, `.glass` (thanh trên),
+`.nav-active` (mục sidebar), `.grad-ring` (viền chuyển sắc khi rê chuột), và quầng
+sáng ở `body::before`.
+
+Quầng sáng phải để **`z-index: -1`**. `position: fixed` biến nó thành phần tử được
+định vị; với `z-index: 0` nó nằm trên mọi nội dung không định vị và phủ mờ lên
+chính chữ của trang.
+
+**Logo đổi vì lý do pháp lý, không phải thẩm mỹ.** Bản cũ là hình tròn đỏ + tam
+giác trắng đặc, đặt cạnh chữ thì đọc gần như nhãn hiệu YouTube. Bản mới là khối bo
+góc chuyển sắc với mũi tên ghép từ hai nét chéo. Icon app dùng chung hình đó.
+
+Cần nói rõ để lần sau không ai nhầm: **đổi giao diện không giảm rủi ro về điều
+khoản**. Chặn quảng cáo và dùng API nội bộ của YouTube vẫn là vi phạm bất kể app
+trông thế nào — xem mục 8. Đổi logo chỉ xử lý được phần nhãn hiệu.
+
+### 4.19d Thứ tự lớp của sidebar — đừng cho nó đổi theo bề rộng
+
+Xếp cứng, ba mức, không dùng breakpoint:
+
+```
+lớp phủ 30  <  sidebar 40  <  thanh trên 50
+```
+
+Bản cũ ghi `z-50 lg:z-30` cho sidebar trong khi lớp phủ là `z-40 xl:hidden`. Hai
+mốc lệch nhau (1024 và 1280) tạo ra một **khoảng chết 1024–1280px**: sidebar tụt
+xuống z-30 mà lớp phủ z-40 vẫn còn, nên lớp phủ đè lên chính cái menu. Hậu quả là
+hai triệu chứng nghe như hai lỗi riêng biệt nhưng cùng một gốc — menu **không cuộn
+được** (con lăn chạm vào lớp phủ), và menu **tối thui** (bị nhìn xuyên qua lớp đen
+60%).
+
+Cũng từng có **hai** lớp phủ: một ở `Sidebar.tsx` (`bg-black/50 lg:hidden`), một ở
+`Shell.tsx` (`bg-black/60 xl:hidden`). Dưới 1024px chúng chồng nhau thành gần 80%
+đen. Nay chỉ còn lớp ở `Shell.tsx` — nơi có sẵn hàm đóng menu.
+
+Sidebar cũng bỏ `no-scrollbar`: giấu thanh cuộn đi thì không còn dấu hiệu nào cho
+biết menu cuộn được.
 
 ### 4.20 `.env.local` không đi theo bản đóng gói
 
@@ -760,6 +822,52 @@ Làm thành driver thì phải hiện `insertUser(email, passwordHash)` và
 bất kỳ ai, muốn chặn lại phải nhúng một khoá chung vào app — tức là quay lại đúng
 bài toán token, chỉ đổi tên. Đi từ client thì server nhận request đã biết "ai"
 nhờ cookie phiên của chính người đó.
+
+**Nút Đăng ký ở kết quả tìm kiếm**, gom thành `SubscribeButton` dùng chung. Logic
+này trước đó bị chép ba lần và các bản không biết gì về nhau — đăng ký ở thẻ kênh
+thì nút của chính kênh đó dưới danh sách video vẫn ghi "Đăng ký". Nút mới lắng
+nghe `onSubsChange`.
+
+**Mục Trò chơi** (`/games`): 2048, rắn săn mồi, dò mìn, lật hình. Tự viết, chạy
+offline, điểm cao ở `localStorage` — cố ý không đưa lên Turso vì mỗi ván là một
+lượt ghi. YouTube có Playables nhưng khoá vùng, không có Việt Nam, và không có
+API công khai nào để mượn.
+
+Mỗi trò ba mức khó, và **khó lên theo cách riêng của từng trò** chứ không chỉ đổi
+tốc độ: 2048 thu nhỏ bàn (5×5 → 3×3, mức khó hạ mục tiêu xuống 512 vì 2048 trên
+bàn 3×3 gần như bất khả thi); rắn đổi cỡ bàn, tốc độ, và mức Dễ cho đi xuyên
+tường; dò mìn tăng **mật độ** mìn chứ không chỉ tăng cỡ bàn (12% → 17% → 18%),
+vì cái khó nằm ở tỉ lệ mìn trên ô — bàn to mà giữ nguyên mật độ thì chỉ lâu hơn.
+Nhãn mức khó ghi rõ thông số, không để trống "Dễ / Vừa / Khó".
+
+Kỷ lục lưu riêng cho từng mức. Gộp chung thì kỷ lục đặt ở mức Dễ sẽ chắn mất kỷ
+lục mức Khó vĩnh viễn.
+
+**Ninja bóng đêm** là trò duy nhất vẽ bằng canvas + `requestAnimationFrame`, và
+là trò duy nhất giữ trạng thái trong `useRef` chứ không phải state React — vòng
+lặp chạy 60 khung/giây, đẩy hết vào state là dựng lại cây giao diện 60 lần mỗi
+giây cho không. Chỉ điểm và chuỗi mới đồng bộ ra state, và chỉ khi con số đổi.
+
+Ba con bug của trò này đáng ghi lại vì đều **không** hiện ra ở typecheck, chỉ lộ
+khi mô phỏng vòng lặp bằng Node:
+
+1. `side` là *địch đứng bên nào*, không phải *hướng nó đi*. Dùng thẳng làm hướng
+   thì cả đám lùi ra khỏi màn hình — ván nào cũng bất tử. Hướng đi là `-side`.
+2. Xác chết sống dậy. Bộ đếm `dying` đếm lùi **qua 0 xuống âm**, mà điều kiện bỏ
+   qua là `dying > 0`, nên nó quay lại di chuyển và giết người chơi — trong khi
+   nhánh vẽ đòi đúng `dying === 0` nên nó vô hình. Nay tách `alive` riêng khỏi
+   `fade`.
+3. Xuyên vùng chết. `Math.abs(x - ME) < DEADLY` hụt khi tốc độ đủ cao để một
+   khung hình đi hơn 60px. Phải so sánh một chiều "đã qua vạch chưa".
+
+Cách kiểm: chạy vòng lặp trong Node với ba kiểu người chơi — không làm gì (phải
+0 điểm), bấm loạn (bị phạt chém hụt, ~3 điểm), và chơi đúng (~150 điểm). Chênh
+lệch đó xác nhận luật chơi có thưởng cho kỹ năng.
+
+Một cái bẫy đã sập trong lúc làm: trong 2048, `rotate` xoay **theo chiều kim đồng
+hồ**, nên số lần xoay cho hướng "lên" là **3** chứ không phải 1. Bản đầu gán
+`lên = 1` và hai phím dọc chạy ngược nhau. Nay có hằng số `LEFT/DOWN/RIGHT/UP`
+kèm ghi chú ngay chỗ đó.
 
 **Gộp tài liệu.** `docs/DB-CLOUD.md` và `docs/TURSO.md` bị xoá, nội dung dồn hết
 vào file này. Trước đó ba file cùng nói về Turso, đọc lại không biết cái nào còn

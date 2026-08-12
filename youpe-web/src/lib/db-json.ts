@@ -18,7 +18,15 @@ export type UserRow = {
 
 export type SessionRow = { token: string; userId: number; expiresAt: number };
 
-export type LibraryRow = VideoItem & { savedAt: number };
+/**
+ * Một mục trong thư viện.
+ *
+ * Không ràng thành `VideoItem` nữa: cùng bảng này còn chứa kênh đăng ký và danh
+ * sách phát — chúng chỉ giống video ở chỗ đều có `id`.
+ */
+export type SavedItem = { id: string } & Record<string, any>;
+
+export type LibraryRow = SavedItem & { savedAt: number };
 
 type Shape = {
   nextUserId: number;
@@ -145,7 +153,7 @@ export function libraryList(userId: number, list: string): LibraryRow[] {
   return Object.values(bucket(userId, list)).sort((a, b) => b.savedAt - a.savedAt);
 }
 
-export function libraryUpsert(userId: number, list: string, video: VideoItem) {
+export function libraryUpsert(userId: number, list: string, video: SavedItem) {
   const b = bucket(userId, list);
   b[video.id] = { ...video, savedAt: Date.now() };
 

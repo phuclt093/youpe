@@ -7,6 +7,7 @@ import { Thumb } from '@/components/VideoCard';
 import { viPublished } from '@/lib/format';
 import { VerifiedIcon } from '@/components/Icons';
 import EmptyState from '@/components/EmptyState';
+import SubscribeButton from '@/components/SubscribeButton';
 import { cancelPrefetch, prefetchNow, prefetchOnHover } from '@/lib/prefetch';
 import type { VideoItem, ChannelItem } from '@/lib/types';
 
@@ -61,14 +62,28 @@ export default function ResultsPage() {
 
       {!loading && channels.map((c) => (
         <div key={c.id} className="mb-6 flex items-center gap-6 border-b border-yt-border pb-6">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={c.avatar} alt="" className="h-[136px] w-[136px] rounded-full object-cover" />
-          <div className="min-w-0">
-            <Link href={`/channel/${c.id}`} className="text-lg font-medium hover:underline">
+          <Link href={`/channel/${c.id}`} className="shrink-0">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={c.avatar} alt="" className="h-[136px] w-[136px] rounded-full object-cover" />
+          </Link>
+
+          <div className="min-w-0 flex-1">
+            <Link
+              href={`/channel/${c.id}`}
+              className="flex items-center gap-1.5 text-lg font-medium hover:underline"
+            >
               {c.name}
+              {c.verified && <VerifiedIcon className="h-4 w-4 shrink-0 text-yt-sub" />}
             </Link>
-            <p className="text-xs text-yt-sub">{c.subsText}</p>
+            <p className="text-xs text-yt-sub">
+              {c.subsText}
+              {c.subsText && c.videoCountText ? ' · ' : ''}
+              {c.videoCountText}
+            </p>
           </div>
+
+          {/* Đăng ký ngay tại đây, khỏi phải vào trang kênh rồi bấm rồi quay ra */}
+          <SubscribeButton channel={c} className="shrink-0" showBell />
         </div>
       ))}
 

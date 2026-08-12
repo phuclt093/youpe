@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { getPrefs, resetPrefs, setPref, PREF_DEFAULTS, type Prefs } from '@/lib/prefs';
 import * as store from '@/lib/storage';
-import { getSubs } from '@/lib/subs';
+import { clearSubs, getSubs } from '@/lib/subs';
 import { clearProgress, getAllProgress } from '@/lib/progress';
 import { getPlaylists } from '@/lib/playlists';
 import { SearchIcon, TrashIcon, CloseIcon } from '@/components/Icons';
@@ -182,7 +182,7 @@ export default function SettingsPage() {
   }, [nq]);
 
   const showTheme =
-    !nq || norm('Chủ đề màu sắc theme giao diện cổ phong giấy cũ mực đêm tối sáng bảng màu tuỳ chỉnh').includes(nq);
+    !nq || norm('Chủ đề màu sắc theme giao diện cổ phong giấy cũ bạch ngọc mực đêm hoa linh genshin ngọc bích tối sáng bảng màu tuỳ chỉnh').includes(nq);
   const showSync =
     !nq || norm('Máy chủ đồng bộ server tài khoản thư viện nhiều máy api từ xa').includes(nq);
   const showData = !nq || norm('Dữ liệu lịch sử xem sau đã thích danh sách phát kênh đăng ký tiến độ dung lượng').includes(nq);
@@ -384,8 +384,7 @@ export default function SettingsPage() {
             unit="kênh"
             onClear={() => {
               if (confirm('Bỏ đăng ký tất cả các kênh?')) {
-                localStorage.removeItem('youpe.subs');
-                window.dispatchEvent(new CustomEvent('youpe-subs'));
+                clearSubs();
                 refresh();
               }
             }}

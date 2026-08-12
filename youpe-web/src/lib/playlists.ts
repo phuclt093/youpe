@@ -1,6 +1,7 @@
 'use client';
 
 import type { VideoItem } from './types';
+import { remotePull, remotePushAll, remoteRemove, remoteUpsert } from './sync';
 
 /**
  * Danh sách phát tự tạo, lưu ở máy.
@@ -38,6 +39,27 @@ function write(list: Playlist[]) {
   window.dispatchEvent(new CustomEvent(EVENT));
 }
 
+/**
+ * Đẩy một danh sách phát lên server.
+ *
+ * Cả danh sách đi cùng một lần, kể cả khi chỉ thêm một video. Danh sách phát là
+ * một khối gắn liền — tên, thứ tự, nội dung — tách nhỏ ra thì phải nghĩ tới
+ * chuyện trộn khi hai máy sửa cùng lúc, mà lợi ích chẳng đáng.
+ */
+const push = (p: Playlist) => remoteUpsert('playlists', p);
+
+/** Kéo về sau khi đăng nhập, ghi đè bản ở máy */
+export async function pullPlaylists(): Promise<Playlist[]> {
+  const items = await remotePull('playlists');
+  if (!items.length) return read();
+  const list = items.map((i) => ({ ...(i as Playlist) }));
+  write(list);
+  return list;
+}
+
+/** Đẩy tất cả những gì đang có ở máy lên — gọi ngay sau lần đăng nhập đầu */
+export const pushPlaylists = () => remotePushAll('playlists', read());
+
 function newId(): string {
   return `pl_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
 }
@@ -72,44 +94,49 @@ export function createPlaylist(name: string, firstVideo?: VideoItem): Playlist {
   };
 
   write([pl, ...read()]);
+  push(pl);
   return pl;
 }
 
 export function renamePlaylist(id: string, name: string) {
-  write(
-    read().map((p) =>
-      p.id === id ? { ...p, name: name.trim() || p.name, updatedAt: Date.now() } : p
-    )
+  const next = read().map((p) =>
+    p.id === id ? { ...p, name: name.trim() || p.name, updatedAt: Date.now() } : p
   );
+  write(next);
+  const changed = next.find((p) => p.id === id);
+  if (changed) push(changed);
 }
 
 export function deletePlaylist(id: string) {
   write(read().filter((p) => p.id !== id));
+  remoteRemove('playlists', id);
 }
 
 export function addToPlaylist(id: string, video: VideoItem) {
-  write(
-    read().map((p) => {
-      if (p.id !== id) return p;
-      if (p.videos.some((v) => v.id === video.id)) return p;
+  const next = read().map((p) => {
+    if (p.id !== id) return p;
+    if (p.videos.some((v) => v.id === video.id)) return p;
 
-      return {
-        ...p,
-        updatedAt: Date.now(),
-        videos: [{ ...video, addedAt: Date.now() }, ...p.videos].slice(0, MAX_VIDEOS),
-      };
-    })
-  );
+    return {
+      ...p,
+      updatedAt: Date.now(),
+      videos: [{ ...video, addedAt: Date.now() }, ...p.videos].slice(0, MAX_VIDEOS),
+    };
+  });
+  write(next);
+  const changed = next.find((p) => p.id === id);
+  if (changed) push(changed);
 }
 
 export function removeFromPlaylist(id: string, videoId: string) {
-  write(
-    read().map((p) =>
-      p.id === id
-        ? { ...p, updatedAt: Date.now(), videos: p.videos.filter((v) => v.id !== videoId) }
-        : p
-    )
+  const next = read().map((p) =>
+    p.id === id
+      ? { ...p, updatedAt: Date.now(), videos: p.videos.filter((v) => v.id !== videoId) }
+      : p
   );
+  write(next);
+  const changed = next.find((p) => p.id === id);
+  if (changed) push(changed);
 }
 
 /** Bật tắt video trong một playlist, trả về trạng thái mới */

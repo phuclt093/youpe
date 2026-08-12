@@ -75,6 +75,21 @@ export const PRESETS: Theme[] = [
   },
   {
     /*
+      Bạch ngọc lụa sáng: nền giấy tuyên trắng ngà ngả ánh bạch ngọc thanh khiết,
+      chữ mực ngà đen thanh nhã, điểm ấn son đỏ thắm và ngọc bích sương mai.
+    */
+    id: 'co-phong-bach-ngoc',
+    name: 'Cổ phong · Bạch ngọc',
+    scheme: 'light',
+    serif: true,
+    colors: {
+      bg: '#f7f4ed', bg2: '#f0ebe0', elev: '#e8e2d4', hover: '#ddd5c4',
+      chip: '#e5ddd0', chip2: '#d3c8b4', border: '#cbbfab',
+      text: '#2b251f', sub: '#736756', red: '#aa382c', blue: '#2b6e59', off: '#ab9f8c',
+    },
+  },
+  {
+    /*
       Mực đêm: nền đen ngả nâu như nghiên mực, chữ trắng ngà, nhấn bằng son và kim.
       Màu "liên kết" ở đây là vàng kim chứ không phải xanh dương — xanh dương trên
       nền này lạc quẻ ngay.
@@ -106,6 +121,22 @@ export const PRESETS: Theme[] = [
       bg: '#0d0a18', bg2: '#120e21', elev: '#1a1430', hover: '#251d42',
       chip: '#221a3c', chip2: '#342a5c', border: '#33285a',
       text: '#f2eaff', sub: '#a294c8', red: '#ff5ea8', blue: '#5fe0d2', off: '#463a70',
+    },
+  },
+  {
+    /*
+      Chủ đề Genshin Impact - Ngọc Bích (Emerald Jade): Tông màu sẫm mang phong cách
+      Ngọc Phỉ Thúy Liyue / Thảo Thần Sumeru. Nền xanh đen bích thạch sâu thẫm,
+      chữ ngọc bích bạch ngọc lấp lánh, nhấn bằng hiệu ứng xanh lá ngọc bích cực sáng.
+    */
+    id: 'genshin-ngoc-bich',
+    name: 'Genshin · Ngọc bích',
+    scheme: 'dark',
+    serif: false,
+    colors: {
+      bg: '#081713', bg2: '#0d211b', elev: '#132c24', hover: '#1b3b31',
+      chip: '#17342b', chip2: '#234d40', border: '#245747',
+      text: '#e5f9f3', sub: '#7fbfae', red: '#00e6a8', blue: '#3be8be', off: '#2d574b',
     },
   },
 ];

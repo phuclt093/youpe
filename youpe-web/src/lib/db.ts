@@ -1,7 +1,6 @@
-import type { VideoItem } from './types';
-import type { UserRow, SessionRow, LibraryRow } from './db-json';
+import type { UserRow, SessionRow, LibraryRow, SavedItem } from './db-json';
 
-export type { UserRow, SessionRow, LibraryRow };
+export type { UserRow, SessionRow, LibraryRow, SavedItem };
 
 /**
  * Lớp chọn backend lưu trữ.
@@ -63,7 +62,7 @@ type Store = {
   findUserBySession(token: string): Async<{ user: UserRow; expiresAt: number } | undefined>;
   pruneSessions(): Async<void>;
   libraryList(userId: number, list: string): Async<LibraryRow[]>;
-  libraryUpsert(userId: number, list: string, video: VideoItem): Async<void>;
+  libraryUpsert(userId: number, list: string, item: SavedItem): Async<void>;
   libraryRemove(userId: number, list: string, videoId: string): Async<void>;
   libraryClear(userId: number, list: string): Async<void>;
 };
@@ -181,7 +180,7 @@ export const pruneSessions = async () => {
 };
 
 export const libraryList = async (u: number, l: string) => (await s()).libraryList(u, l);
-export const libraryUpsert = async (u: number, l: string, v: VideoItem) => {
+export const libraryUpsert = async (u: number, l: string, v: SavedItem) => {
   await (await s()).libraryUpsert(u, l, v);
 };
 export const libraryRemove = async (u: number, l: string, v: string) => {

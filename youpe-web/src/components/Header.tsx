@@ -69,7 +69,7 @@ export default function Header({ onToggleMenu }: { onToggleMenu: () => void }) {
   };
 
   return (
-    <header className="fixed inset-x-0 top-0 z-50 flex h-14 items-center justify-between gap-4 bg-yt-bg px-4">
+    <header className="glass fixed inset-x-0 top-0 z-50 flex h-14 items-center justify-between gap-4 px-4">
       {/* trái */}
       <div className={`flex items-center gap-4 ${mobileSearch ? 'hidden sm:flex' : 'flex'}`}>
         <button

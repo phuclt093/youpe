@@ -6,14 +6,14 @@ import Link from 'next/link';
 import { PlayerSlot, usePlayer } from '@/components/PlayerHost';
 import Comments from '@/components/Comments';
 import VideoCard from '@/components/VideoCard';
-import { LikeIcon, DislikeIcon, ShareIcon, ClockIcon, VerifiedIcon, MoreIcon, BellIcon } from '@/components/Icons';
+import { LikeIcon, DislikeIcon, ShareIcon, ClockIcon, VerifiedIcon, MoreIcon } from '@/components/Icons';
 import { formatCount, viPublished } from '@/lib/format';
 import * as store from '@/lib/storage';
 import { prefetchNow } from '@/lib/prefetch';
-import * as subs from '@/lib/subs';
 import SaveToPlaylist from '@/components/SaveToPlaylist';
 import LiveChat from '@/components/LiveChat';
 import Description from '@/components/Description';
+import SubscribeButton from '@/components/SubscribeButton';
 import type { VideoDetail, VideoItem } from '@/lib/types';
 
 export default function WatchPage() {
@@ -26,7 +26,6 @@ export default function WatchPage() {
   const [expanded, setExpanded] = useState(false);
   const [liked, setLiked] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [subbed, setSubbed] = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
   const [related, setRelated] = useState<VideoItem[]>([]);
   const [mix, setMix] = useState<{ source: string; count: number }[]>([]);
@@ -112,7 +111,6 @@ export default function WatchPage() {
     store.add('history', item);
     setLiked(store.has('liked', data.id));
     setSaved(store.has('later', data.id));
-    setSubbed(subs.isSubscribed(data.channel.id));
   }, [data]);
 
   // Đang xem thì âm thầm lấy sẵn luồng của video kế tiếp — bấm sang là phát ngay.
@@ -178,25 +176,18 @@ export default function WatchPage() {
                   </Link>
                   <p className="text-xs text-yt-sub">{data?.channel.subsText}</p>
                 </div>
-                <button
-                  onClick={() => {
-                    if (!data) return;
-                    setSubbed(
-                      subs.toggleSub({
-                        id: data.channel.id,
-                        name: data.channel.name,
-                        avatar: data.channel.avatar,
-                        subsText: data.channel.subsText,
-                      })
-                    );
-                  }}
-                  className={`ml-3 flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium ${
-                    subbed ? 'bg-yt-chip hover:bg-yt-chip2' : 'bg-yt-text text-yt-bg hover:bg-yt-text/90'
-                  }`}
-                >
-                  {subbed && <BellIcon className="h-4 w-4" />}
-                  {subbed ? 'Đã đăng ký' : 'Đăng ký'}
-                </button>
+                <SubscribeButton
+                  className="ml-3 shrink-0"
+                  showBell
+                  channel={
+                    data && {
+                      id: data.channel.id,
+                      name: data.channel.name,
+                      avatar: data.channel.avatar,
+                      subsText: data.channel.subsText,
+                    }
+                  }
+                />
               </div>
 
               <div className="no-scrollbar flex items-center gap-2 overflow-x-auto">

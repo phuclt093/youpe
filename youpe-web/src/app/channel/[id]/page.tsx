@@ -4,9 +4,9 @@ import { use, useEffect, useState } from 'react';
 import Link from 'next/link';
 import VideoCard, { CardSkeleton } from '@/components/VideoCard';
 import EmptyState from '@/components/EmptyState';
+import SubscribeButton from '@/components/SubscribeButton';
 import { PlaylistIcon, VerifiedIcon } from '@/components/Icons';
 import type { VideoItem } from '@/lib/types';
-import * as subs from '@/lib/subs';
 
 type ChannelData = {
   id: string; name: string; avatar: string; banner: string;
@@ -40,10 +40,6 @@ export default function ChannelPage({ params }: { params: Promise<{ id: string }
   const [sort, setSort] = useState('newest');
   const [data, setData] = useState<ChannelData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [subbed, setSubbed] = useState(false);
-
-  useEffect(() => setSubbed(subs.isSubscribed(id)), [id]);
-
   useEffect(() => {
     let alive = true;
     setLoading(true);
@@ -78,26 +74,17 @@ export default function ChannelPage({ params }: { params: Promise<{ id: string }
               {data?.handle} {data?.subsText && `· ${data.subsText}`}
             </p>
             <p className="mt-1 line-clamp-1 max-w-xl text-sm text-yt-sub">{data?.description}</p>
-            <button
-              onClick={() =>
-                data &&
-                setSubbed(
-                  subs.toggleSub({
-                    id: data.id,
-                    name: data.name,
-                    avatar: data.avatar,
-                    subsText: data.subsText,
-                  })
-                )
+            <SubscribeButton
+              className="mt-4"
+              channel={
+                data && {
+                  id: data.id,
+                  name: data.name,
+                  avatar: data.avatar,
+                  subsText: data.subsText,
+                }
               }
-              className={`mt-4 rounded-full px-4 py-2 text-sm font-medium ${
-                subbed
-                  ? 'bg-yt-chip text-yt-text hover:bg-yt-chip2'
-                  : 'bg-yt-text text-yt-bg hover:bg-yt-text/90'
-              }`}
-            >
-              {subbed ? 'Đã đăng ký' : 'Đăng ký'}
-            </button>
+            />
           </div>
         </div>
 

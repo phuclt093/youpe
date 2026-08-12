@@ -1,6 +1,5 @@
 import { createClient, type Client } from '@libsql/client/web';
-import type { VideoItem } from './types';
-import type { UserRow, SessionRow, LibraryRow } from './db-json';
+import type { UserRow, SessionRow, LibraryRow, SavedItem } from './db-json';
 
 /**
  * Kho dữ liệu đặt trên Turso (libSQL) — dùng chung cho mọi thiết bị.
@@ -227,7 +226,7 @@ export async function libraryList(userId: number, list: string): Promise<Library
   }));
 }
 
-export async function libraryUpsert(userId: number, list: string, video: VideoItem) {
+export async function libraryUpsert(userId: number, list: string, video: SavedItem) {
   /*
     Ghi và cắt bớt gộp trong một `batch`: hai câu lệnh đi chung một vòng gọi mạng
     thay vì hai. Với cơ sở dữ liệu trên máy thì chẳng khác gì, nhưng qua mạng thì

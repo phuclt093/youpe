@@ -86,14 +86,38 @@ html[data-serif='1'] body {
 .anim-fade-in { animation: fadeIn .25s ease both; }
 .anim-pop     { animation: popIn .16s cubic-bezier(.22,.61,.36,1) both; }
 
-/* Card video: ảnh phóng nhẹ, bo góc mở ra khi rê chuột */
+/* ---------- thẻ video ----------
+
+  YouTube gốc **bỏ hẳn bo góc** khi rê chuột, cho ảnh tràn ra mép. Ở đây làm
+  ngược lại: giữ bo góc, nhấc thẻ lên một chút và thả bóng xuống dưới. Vừa mềm
+  hơn, vừa không còn là cử chỉ đặc trưng của YouTube.
+*/
 .card-thumb {
-  transition: border-radius .2s ease, transform .2s ease;
+  transition: transform .22s cubic-bezier(.22,.61,.36,1), box-shadow .22s ease;
   will-change: transform;
 }
-.group:hover .card-thumb { border-radius: 0; }
-.group:hover .card-thumb img { transform: scale(1.045); }
-.card-thumb img { transition: transform .45s cubic-bezier(.22,.61,.36,1); }
+.group:hover .card-thumb {
+  transform: translateY(-4px);
+  box-shadow: 0 14px 28px -12px rgb(0 0 0 / .45), 0 0 0 1px rgb(var(--yt-border));
+}
+.group:hover .card-thumb img { transform: scale(1.06); }
+.card-thumb img { transition: transform .5s cubic-bezier(.22,.61,.36,1); }
+
+/**
+ * Nhãn thời lượng và nhãn trực tiếp.
+ *
+ * Nền kính mờ thay cho khối đen đặc — trên ảnh sáng thì đỡ nặng, trên ảnh tối
+ * vẫn đủ tách. `color-scheme` không đụng tới được nên phải tự đặt màu chữ trắng:
+ * lớp phủ luôn tối, kể cả khi chủ đề đang là nền sáng.
+ */
+.badge-time,
+.badge-live {
+  color: #fff;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.badge-time { background: rgb(0 0 0 / .55); }
+.badge-live { background: rgb(var(--yt-red) / .85); }
 
 .group:hover .card-title { color: rgb(var(--yt-text)); }
 .card-title { transition: color .15s ease; }
@@ -123,6 +147,96 @@ img { background-color: rgb(var(--yt-elev)); }
 
 /* Chip đang chọn: nổi hơn chút */
 .chip-active { box-shadow: 0 0 0 1px rgb(var(--yt-text) / .18); }
+
+/* ---------- điểm nhấn chuyển sắc ----------
+
+  Mọi gradient dựng từ hai màu nhấn của chủ đề đang bật (`--yt-red` và
+  `--yt-blue`) chứ không viết mã màu cứng. Nhờ vậy nó tự hợp với cả sáu bộ màu:
+  đỏ→xanh dương ở bộ mặc định, son→ngọc ở Giấy cũ, hồng→ngọc ở Hoa linh.
+
+  Viết cứng một cặp màu đẹp trên nền tối thì sang bộ Giấy cũ sẽ chói như đèn nháy.
+*/
+.grad-accent {
+  background-image: linear-gradient(135deg, rgb(var(--yt-red)), rgb(var(--yt-blue)));
+}
+
+/* Chữ đổ màu — dùng cho chữ "youpe" ở logo */
+.grad-text {
+  background-image: linear-gradient(100deg, rgb(var(--yt-red)), rgb(var(--yt-blue)));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/**
+ * Quầng sáng mờ ở đỉnh trang.
+ *
+ * Đặt ở `body::before` với `position: fixed` để nó đứng yên khi cuộn — cuộn theo
+ * thì mắt bắt được chuyển động và thành khó chịu. `pointer-events: none` để
+ * không chắn mất thao tác chuột.
+ */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0 0 auto 0;
+  height: 420px;
+  pointer-events: none;
+  /*
+    Âm chứ không phải 0. `position: fixed` biến nó thành phần tử được định vị;
+    với z-index 0 nó nằm **trên** mọi nội dung không định vị, tức là phủ mờ lên
+    chính chữ của trang. Âm thì nó xuống dưới nội dung mà vẫn trên nền của body.
+  */
+  z-index: -1;
+  background:
+    radial-gradient(60% 100% at 18% 0%, rgb(var(--yt-red) / .10), transparent 70%),
+    radial-gradient(55% 100% at 82% 0%, rgb(var(--yt-blue) / .10), transparent 70%);
+}
+
+/* Thanh trên: kính mờ thay vì nền đặc, cho thấy thoáng khi cuộn */
+.glass {
+  background: rgb(var(--yt-bg) / .72);
+  backdrop-filter: blur(14px) saturate(1.3);
+  -webkit-backdrop-filter: blur(14px) saturate(1.3);
+  border-bottom: 1px solid rgb(var(--yt-border) / .7);
+}
+
+/* Mục đang chọn ở sidebar: nền chuyển sắc rất nhạt kèm vạch dọc đậm màu */
+.nav-active {
+  position: relative;
+  background-image: linear-gradient(90deg, rgb(var(--yt-red) / .16), rgb(var(--yt-blue) / .10) 60%, transparent);
+}
+.nav-active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 18%;
+  bottom: 18%;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background-image: linear-gradient(180deg, rgb(var(--yt-red)), rgb(var(--yt-blue)));
+}
+
+/* Viền chuyển sắc mảnh, hiện khi rê chuột lên thẻ */
+.grad-ring {
+  position: relative;
+}
+.grad-ring::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background-image: linear-gradient(135deg, rgb(var(--yt-red) / .55), rgb(var(--yt-blue) / .55));
+  /* Kỹ thuật "viền gradient": tô kín rồi khoét ruột bằng mask, giữ được bo góc */
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity .18s ease;
+  pointer-events: none;
+}
+.grad-ring:hover::after { opacity: 1; }
 
 /* Tắt hiệu ứng theo tuỳ chọn trong trang Cài đặt */
 .no-anim *,

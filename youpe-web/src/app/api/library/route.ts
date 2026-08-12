@@ -5,7 +5,13 @@ import { libraryClear, libraryList, libraryRemove, libraryUpsert } from '@/lib/d
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const LISTS = ['history', 'later', 'liked', 'playlists'];
+/**
+ * `subs` = kênh đăng ký, `playlists` = danh sách phát tự tạo.
+ *
+ * Bảng `library` thực chất là "danh sách các thứ có id", không riêng gì video —
+ * kênh và danh sách phát nhét vừa y như cũ, khỏi phải dựng thêm bảng.
+ */
+const LISTS = ['history', 'later', 'liked', 'playlists', 'subs'];
 const unauthorized = () => NextResponse.json({ error: 'chưa đăng nhập' }, { status: 401 });
 
 /** GET /api/library?list=history */
@@ -24,11 +30,15 @@ export async function POST(req: NextRequest) {
   const user = await currentUser();
   if (!user) return unauthorized();
 
-  const { list, video } = await req.json();
-  if (!LISTS.includes(list) || !video?.id)
+  const body = await req.json();
+  const { list } = body;
+  // `video` là tên cũ, app TV vẫn đang gửi bằng tên đó — nhận cả hai
+  const item = body.item ?? body.video;
+
+  if (!LISTS.includes(list) || !item?.id)
     return NextResponse.json({ error: 'dữ liệu không hợp lệ' }, { status: 400 });
 
-  await libraryUpsert(user.id, list, video);
+  await libraryUpsert(user.id, list, item);
 
   return NextResponse.json({ ok: true });
 }

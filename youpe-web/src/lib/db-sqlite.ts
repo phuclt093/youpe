@@ -1,7 +1,6 @@
 import { mkdirSync, existsSync, readFileSync, renameSync } from 'node:fs';
 import path from 'node:path';
-import type { VideoItem } from './types';
-import type { UserRow, SessionRow, LibraryRow } from './db-json';
+import type { UserRow, SessionRow, LibraryRow, SavedItem } from './db-json';
 
 /**
  * Kho dữ liệu bằng SQLite, dùng module `node:sqlite` có sẵn trong Node 22.5+.
@@ -190,7 +189,7 @@ export function libraryList(userId: number, list: string): LibraryRow[] {
     .map((r: any) => ({ ...JSON.parse(r.payload), savedAt: r.saved_at }));
 }
 
-export function libraryUpsert(userId: number, list: string, video: VideoItem) {
+export function libraryUpsert(userId: number, list: string, video: SavedItem) {
   const now = Date.now();
 
   db.prepare(

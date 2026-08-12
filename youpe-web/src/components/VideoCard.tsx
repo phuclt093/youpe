@@ -88,7 +88,7 @@ export function Thumb({ v, hovered = false }: { v: VideoItem; hovered?: boolean 
   }, [previewOn]);
 
   return (
-    <div className="card-thumb relative aspect-video w-full overflow-hidden rounded-xl bg-yt-elev">
+    <div className="card-thumb relative aspect-video w-full overflow-hidden rounded-2xl bg-yt-elev">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={v.thumbnail}
@@ -120,12 +120,12 @@ export function Thumb({ v, hovered = false }: { v: VideoItem; hovered?: boolean 
         />
       )}
       {v.isLive ? (
-        <span className="absolute bottom-1 right-1 rounded bg-yt-red px-1 py-0.5 text-[11px] font-medium">
+        <span className="badge-live absolute bottom-2 right-2 rounded-md px-1.5 py-0.5 text-[11px] font-medium tracking-wide">
           TRỰC TIẾP
         </span>
       ) : (
         (v.durationText || v.durationSec) && (
-          <span className="absolute bottom-1 right-1 rounded bg-black/80 px-1 py-0.5 text-[11px] font-medium">
+          <span className="badge-time absolute bottom-2 right-2 rounded-md px-1.5 py-0.5 text-[11px] font-medium tabular-nums">
             {v.durationText || formatDuration(v.durationSec)}
           </span>
         )
@@ -150,8 +150,8 @@ export function Thumb({ v, hovered = false }: { v: VideoItem; hovered?: boolean 
 
       {/* vạch đỏ báo đã xem tới đâu */}
       {ratio > 0.01 && (
-        <div className="absolute inset-x-0 bottom-0 h-1 bg-white/30">
-          <div className="h-full bg-yt-red" style={{ width: `${ratio * 100}%` }} />
+        <div className="absolute inset-x-0 bottom-0 h-1 bg-black/40">
+          <div className="grad-accent h-full" style={{ width: `${ratio * 100}%` }} />
         </div>
       )}
     </div>
