@@ -102,6 +102,25 @@ async function trendingBucket(yt: any): Promise<Bucket> {
   return { source: 'xu hướng', weight: 1, items };
 }
 
+/**
+ * Video mới nhất của một kênh.
+ *
+ * Cache 15 phút vì trang chủ gọi cùng lúc cả chục kênh, và người ta mở lại trang
+ * chủ liên tục — không cache thì mỗi lần vào là ngần ấy lượt gọi YouTube.
+ */
+async function channelBucketItems(yt: any, id: string): Promise<VideoItem[]> {
+  return cached(`ch:${id}`, 15 * 60_000, async () => {
+    try {
+      const ch: any = await yt.getChannel(id);
+      const tab = await ch.getVideos();
+      return videosFrom(tab, 8);
+    } catch {
+      // Kênh bị xoá hay đổi id thì bỏ qua, đừng để một kênh hỏng chặn cả trang chủ
+      return [];
+    }
+  });
+}
+
 /* ---------------- xen kẽ ---------------- */
 
 /**
@@ -199,6 +218,82 @@ export async function buildRelated(
   const videos = interleave(buckets, limit, exclude);
 
   // đánh dấu nguồn của từng video để hiện ra hoặc gỡ lỗi
+  const mix = buckets
+    .map((b) => ({
+      source: b.source,
+      count: videos.filter((v) => b.items.some((i) => i.id === v.id)).length,
+    }))
+    .filter((m) => m.count > 0);
+
+  return { videos, mix };
+}
+
+/**
+ * Trang chủ theo người dùng.
+ *
+ * Feed chủ của YouTube khi không đăng nhập chỉ là một mớ đang thịnh hành — mở
+ * youpe ra toàn video chẳng liên quan gì tới thứ mình theo dõi. Ở đây trộn ba
+ * nguồn theo trọng số:
+ *
+ *   3  kênh đăng ký    video mới của những kênh mình theo
+ *   2  bạn hay xem     tìm theo từ khoá lặp lại trong lịch sử xem
+ *   1  khám phá        feed chung, để không đóng khung trong cái đã biết
+ *
+ * Trần mỗi kênh (`CHANNEL_CAP`) vẫn áp dụng, nên đăng ký một kênh đăng dày cũng
+ * không chiếm hết trang.
+ *
+ * Chưa đăng ký kênh nào và chưa có lịch sử thì hàm này trả rỗng, nơi gọi tự quay
+ * về feed chung — trang chủ của người mới không nên trống trơn.
+ */
+export async function buildHome(
+  yt: any,
+  fallback: VideoItem[],
+  opts: { channelIds?: string[]; seedTitles?: string[]; watchedIds?: string[]; limit?: number } = {}
+): Promise<RelatedResult> {
+  const limit = opts.limit ?? 40;
+  const channelIds = opts.channelIds ?? [];
+  const behaviour = queriesFromTitles(opts.seedTitles ?? [], 2);
+
+  if (!channelIds.length && !behaviour.length) return { videos: [], mix: [] };
+
+  /*
+    Chỉ hỏi tối đa 10 kênh, và **chọn ngẫu nhiên** trong số đã đăng ký.
+    Lấy 10 kênh đầu theo thứ tự thì ai đăng ký 50 kênh sẽ mãi mãi chỉ thấy 10 cái
+    đầu bảng chữ cái. Lấy mẫu ngẫu nhiên thì mỗi lần mở lại là một lát cắt khác.
+  */
+  const picked = sample(channelIds, 10);
+
+  const subItems = (await Promise.allSettled(picked.map((id) => channelBucketItems(yt, id))))
+    .flatMap((r) => (r.status === 'fulfilled' ? r.value : []));
+
+  const buckets: Bucket[] = [];
+  if (subItems.length) buckets.push({ source: 'kênh đăng ký', weight: 3, items: subItems });
+
+  const searched = await Promise.allSettled(
+    behaviour.map((t) => searchBucket(yt, t, `bạn hay xem: ${t}`, 2))
+  );
+  for (const s of searched) {
+    if (s.status === 'fulfilled' && s.value.items.length) buckets.push(s.value);
+  }
+
+  /*
+    Chưa có nguồn cá nhân nào ra video thì bỏ cuộc, để nơi gọi trả feed chung.
+
+    Không có nhánh này thì khi kênh đăng ký lỗi hết và tìm kiếm không ra gì, hàm
+    vẫn trả về đúng feed chung nhưng gắn nhãn "đã cá nhân hoá" — dòng "Trộn từ:
+    khám phá" hiện lên trong khi chẳng trộn gì cả.
+  */
+  if (!buckets.length) return { videos: [], mix: [] };
+
+  if (fallback.length) buckets.push({ source: 'khám phá', weight: 1, items: fallback });
+
+  /*
+    Loại video đã xem khỏi trang chủ — khác hẳn màn hình gợi ý bên cạnh trình
+    phát, nơi xem lại là chuyện thường. Trang chủ mà toàn thứ vừa xem xong thì
+    chẳng còn là trang khám phá nữa.
+  */
+  const videos = interleave(buckets, limit, new Set(opts.watchedIds ?? []));
+
   const mix = buckets
     .map((b) => ({
       source: b.source,

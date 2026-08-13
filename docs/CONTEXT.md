@@ -466,6 +466,36 @@ Cần nói rõ để lần sau không ai nhầm: **đổi giao diện không gi�
 khoản**. Chặn quảng cáo và dùng API nội bộ của YouTube vẫn là vi phạm bất kể app
 trông thế nào — xem mục 8. Đổi logo chỉ xử lý được phần nhãn hiệu.
 
+### 4.19e Trang chủ trộn theo người dùng (`POST /api/home`)
+
+Feed chủ của YouTube khi không đăng nhập chỉ là một mớ đang thịnh hành — mở youpe
+ra toàn thứ chẳng liên quan gì tới kênh mình theo. `buildHome()` trong
+`recommend.ts` trộn ba nguồn theo trọng số:
+
+| Trọng số | Nguồn | Lấy từ đâu |
+|---|---|---|
+| 3 | kênh đăng ký | video mới của tối đa 10 kênh, **chọn ngẫu nhiên** trong số đã đăng ký |
+| 2 | bạn hay xem | tìm theo từ khoá lặp lại trong lịch sử (`queriesFromTitles`) |
+| 1 | khám phá | feed chung, để không đóng khung trong cái đã biết |
+
+Vài quyết định đáng nhớ:
+
+- **POST chứ không GET.** Kênh đăng ký và lịch sử nằm ở `localStorage`; server
+  không tự biết nên client phải gửi lên. Nhét cả danh sách kênh vào query string
+  thì vừa dài vừa lọt vào log.
+- **Lấy mẫu ngẫu nhiên 10 kênh**, không phải 10 kênh đầu. Lấy theo thứ tự thì ai
+  đăng ký 50 kênh sẽ mãi mãi chỉ thấy 10 cái đầu bảng chữ cái.
+- **Loại video đã xem** khỏi trang chủ — ngược với cột gợi ý cạnh trình phát, nơi
+  xem lại là chuyện thường.
+- Chưa theo dõi gì thì `buildHome` trả rỗng và route tự trả feed chung. Trang chủ
+  của người mới không nên trống trơn.
+- Nếu **chỉ** nguồn "khám phá" ra video thì cũng coi như chưa cá nhân hoá — không
+  thì dòng "Trộn từ: khám phá" hiện lên trong khi chẳng trộn gì cả.
+- Chỉ tab Trang chủ đi đường này. Vào tab "Âm nhạc" là muốn xem nhạc, không phải
+  xem thứ mình hay xem.
+- Cuộn thêm vẫn lấy từ `/api/feed` — nội dung theo sở thích hữu hạn, hết video mới
+  của các kênh mình theo là hết.
+
 ### 4.19d Thứ tự lớp của sidebar — đừng cho nó đổi theo bề rộng
 
 Xếp cứng, ba mức, không dùng breakpoint:

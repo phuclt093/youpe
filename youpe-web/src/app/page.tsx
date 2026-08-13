@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import VideoCard, { CardSkeleton } from '@/components/VideoCard';
 import Chips from '@/components/Chips';
 import { TOPICS, topicByKey } from '@/lib/topics';
+import { getSubs } from '@/lib/subs';
+import * as store from '@/lib/storage';
 import type { VideoItem } from '@/lib/types';
 
 const CHIPS = TOPICS.map((t) => ({ key: t.key, label: t.label }));
@@ -20,6 +22,8 @@ export default function HomePage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [canLoadMore, setCanLoadMore] = useState(false);
   const [err, setErr] = useState('');
+  /** Trang chủ được trộn từ đâu — hiện thành một dòng nhỏ cho biết vì sao thấy mấy video này */
+  const [mix, setMix] = useState<{ source: string; count: number }[]>([]);
 
   const sentinel = useRef<HTMLDivElement>(null);
   const seen = useRef(new Set<string>());
@@ -30,21 +34,56 @@ export default function HomePage() {
     setLoading(true);
     setErr('');
     setVideos([]);
+    setMix([]);
     setCanLoadMore(false);
     seen.current = new Set();
     window.scrollTo({ top: 0 });
 
-    fetch(`/api/feed?tab=${tab}`)
-      .then((r) => r.json())
-      .then((j) => {
+    /*
+      Tab "Trang chủ" đi đường riêng: gửi kèm kênh đăng ký và lịch sử xem để server
+      trộn thành feed theo sở thích. Mấy tab chủ đề khác thì vẫn là feed chung —
+      vào tab "Âm nhạc" là muốn xem nhạc, không phải xem thứ mình hay xem.
+
+      Hai tín hiệu này nằm ở localStorage nên phải gửi lên; server không tự biết.
+    */
+    const load = async () => {
+      try {
+        if (tab !== 'home') {
+          const r = await fetch(`/api/feed?tab=${tab}`);
+          return { j: await r.json(), personal: false };
+        }
+
+        const history = store.getList('history');
+        const r = await fetch('/api/home', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            channelIds: getSubs().map((c) => c.id),
+            seedTitles: history.slice(0, 25).map((v) => v.title),
+            watchedIds: history.slice(0, 150).map((v) => v.id),
+          }),
+        });
+        return { j: await r.json(), personal: true };
+      } catch (e) {
+        return { j: { error: String(e), videos: [] }, personal: false };
+      }
+    };
+
+    load()
+      .then(({ j, personal }) => {
         if (!alive) return;
         const list: VideoItem[] = j.videos ?? [];
         list.forEach((v) => seen.current.add(v.id));
         setVideos(list);
-        setCanLoadMore(!!j.canLoadMore && list.length > 0);
+        setMix(j.mix ?? []);
+        /*
+          Trang chủ cá nhân hoá vẫn cuộn thêm được: phần "thêm" lấy từ feed chung
+          qua `/api/feed`. Nội dung theo sở thích thì hữu hạn — hết video mới của
+          các kênh mình theo là hết — nên phía dưới chuyển sang khám phá là hợp lý.
+        */
+        setCanLoadMore(personal ? list.length > 0 : !!j.canLoadMore && list.length > 0);
         if (j.error) setErr(j.error);
       })
-      .catch((e) => alive && setErr(String(e)))
       .finally(() => alive && setLoading(false));
 
     return () => {
@@ -94,6 +133,17 @@ export default function HomePage() {
 
       {tab !== 'home' && (
         <h1 className="mb-4 mt-1 text-xl font-bold">{topic.label}</h1>
+      )}
+
+      {tab === 'home' && mix.length > 0 && (
+        <p className="mb-4 mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-yt-sub">
+          <span>Trộn từ</span>
+          {mix.map((m) => (
+            <span key={m.source} className="rounded-full bg-yt-chip px-2.5 py-1">
+              {m.source} <span className="text-yt-text">{m.count}</span>
+            </span>
+          ))}
+        </p>
       )}
 
       {err && !videos.length && !loading && (
