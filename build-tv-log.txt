@@ -1,0 +1,100 @@
+> Task :core:preBuild UP-TO-DATE
+> Task :core:preReleaseBuild UP-TO-DATE
+> Task :app:buildKotlinToolingMetadata UP-TO-DATE
+> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preReleaseBuild UP-TO-DATE
+> Task :app:generateReleaseResValues UP-TO-DATE
+> Task :core:writeReleaseAarMetadata UP-TO-DATE
+> Task :core:generateReleaseResValues UP-TO-DATE
+> Task :app:generateReleaseResources UP-TO-DATE
+> Task :core:generateReleaseResources UP-TO-DATE
+> Task :core:packageReleaseResources UP-TO-DATE
+> Task :core:extractDeepLinksRelease UP-TO-DATE
+> Task :core:processReleaseManifest UP-TO-DATE
+> Task :core:compileReleaseLibraryResources UP-TO-DATE
+> Task :core:parseReleaseLocalResources UP-TO-DATE
+> Task :core:generateReleaseRFile UP-TO-DATE
+> Task :core:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :app:checkReleaseAarMetadata UP-TO-DATE
+> Task :app:mapReleaseSourceSetPaths UP-TO-DATE
+> Task :app:mergeReleaseResources UP-TO-DATE
+> Task :app:packageReleaseResources UP-TO-DATE
+> Task :app:parseReleaseLocalResources UP-TO-DATE
+> Task :core:compileReleaseKotlin UP-TO-DATE
+> Task :core:javaPreCompileRelease UP-TO-DATE
+> Task :core:compileReleaseJavaWithJavac NO-SOURCE
+> Task :core:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :core:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :core:processReleaseJavaRes UP-TO-DATE
+> Task :core:createFullJarRelease UP-TO-DATE
+> Task :core:extractProguardFiles UP-TO-DATE
+> Task :app:createReleaseCompatibleScreenManifests
+> Task :app:extractDeepLinksRelease UP-TO-DATE
+> Task :app:processReleaseMainManifest UP-TO-DATE
+> Task :core:generateReleaseLintModel UP-TO-DATE
+> Task :core:prepareLintJarForPublish UP-TO-DATE
+> Task :core:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :core:mergeReleaseNativeLibs NO-SOURCE
+> Task :core:stripReleaseDebugSymbols NO-SOURCE
+> Task :core:copyReleaseJniLibsProjectAndLocalJars UP-TO-DATE
+> Task :core:extractDeepLinksForAarRelease UP-TO-DATE
+> Task :core:extractReleaseAnnotations UP-TO-DATE
+> Task :core:mergeReleaseGeneratedProguardFiles UP-TO-DATE
+> Task :core:mergeReleaseConsumerProguardFiles UP-TO-DATE
+> Task :core:mergeReleaseShaders UP-TO-DATE
+> Task :core:compileReleaseShaders NO-SOURCE
+> Task :core:generateReleaseAssets UP-TO-DATE
+> Task :core:packageReleaseAssets UP-TO-DATE
+> Task :core:prepareReleaseArtProfile UP-TO-DATE
+> Task :core:mergeReleaseJavaResource UP-TO-DATE
+> Task :core:syncReleaseLibJars UP-TO-DATE
+> Task :core:bundleReleaseLocalLintAar UP-TO-DATE
+> Task :core:lintVitalAnalyzeRelease UP-TO-DATE
+> Task :core:writeReleaseLintModelMetadata UP-TO-DATE
+> Task :core:generateReleaseLintVitalModel UP-TO-DATE
+> Task :core:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :core:exportReleaseConsumerProguardFiles UP-TO-DATE
+> Task :app:processReleaseManifest
+> Task :app:processReleaseManifestForPackage UP-TO-DATE
+> Task :app:javaPreCompileRelease UP-TO-DATE
+> Task :app:extractProguardFiles UP-TO-DATE
+> Task :app:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :app:mergeReleaseNativeLibs UP-TO-DATE
+> Task :app:stripReleaseDebugSymbols UP-TO-DATE
+> Task :app:extractReleaseNativeSymbolTables UP-TO-DATE
+> Task :app:mergeReleaseNativeDebugMetadata NO-SOURCE
+> Task :app:checkReleaseDuplicateClasses UP-TO-DATE
+> Task :app:mergeReleaseArtProfile UP-TO-DATE
+> Task :app:mergeReleaseStartupProfile UP-TO-DATE
+> Task :app:mergeReleaseShaders UP-TO-DATE
+> Task :app:compileReleaseShaders NO-SOURCE
+> Task :app:generateReleaseAssets UP-TO-DATE
+> Task :app:mergeReleaseAssets UP-TO-DATE
+> Task :app:compressReleaseAssets UP-TO-DATE
+> Task :app:extractReleaseVersionControlInfo UP-TO-DATE
+> Task :app:collectReleaseDependencies UP-TO-DATE
+> Task :app:sdkReleaseDependencyData UP-TO-DATE
+> Task :app:validateSigningRelease
+> Task :app:writeReleaseAppMetadata UP-TO-DATE
+> Task :app:writeReleaseSigningConfigVersions UP-TO-DATE
+> Task :app:processReleaseResources
+> Task :app:compileReleaseKotlin UP-TO-DATE
+> Task :app:compileReleaseJavaWithJavac NO-SOURCE
+> Task :app:generateReleaseLintVitalReportModel
+> Task :app:expandReleaseArtProfileWildcards UP-TO-DATE
+> Task :app:mergeReleaseGeneratedProguardFiles UP-TO-DATE
+> Task :app:processReleaseJavaRes UP-TO-DATE
+> Task :app:mergeReleaseJavaResource UP-TO-DATE
+> Task :app:minifyReleaseWithR8 UP-TO-DATE
+> Task :app:compileReleaseArtProfile UP-TO-DATE
+> Task :app:optimizeReleaseResources
+> Task :app:packageRelease
+> Task :app:createReleaseApkListingFileRedirect
+> Task :app:lintVitalAnalyzeRelease
+> Task :app:lintVitalReportRelease
+> Task :app:lintVitalRelease
+> Task :app:assembleRelease
+
+BUILD SUCCESSFUL in 32s
+81 actionable tasks: 11 executed, 70 up-to-date

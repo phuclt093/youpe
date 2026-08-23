@@ -120,7 +120,10 @@ export default function Player({
   const [volume, setVolume] = useState(1);
   const [muted, setMuted] = useState(false);
   const [showUI, setShowUI] = useState(true);
-  const [menu, setMenu] = useState<null | 'settings' | 'quality' | 'speed'>(null);
+  const [menu, setMenu] = useState<null | 'settings' | 'quality' | 'speed' | 'xoilacSource'>(null);
+  const [xoilacSources, setXoilacSources] = useState<{ id: string; name: string; url: string; quality: string; commentator?: string }[]>([]);
+  const [activeXoilacSource, setActiveXoilacSource] = useState<{ id: string; name: string; url: string; quality: string; commentator?: string } | null>(null);
+  const [selectedXoilacSourceId, setSelectedXoilacSourceId] = useState<string>('');
   const [tracks, setTracks] = useState<Track[]>([]);
   const [auto, setAuto] = useState(true);
   const [speed, setSpeed] = useState(1);
@@ -328,8 +331,30 @@ export default function Player({
 
     (async () => {
       try {
-        // Một request duy nhất quyết định tất cả: nguồn nào, dựng được DASH không.
         setResolving(true);
+
+        /* ---------- Xử lý nguồn Xoilac ---------- */
+        if (videoId.startsWith('xl_')) {
+          const query = `/api/xoilac/stream?matchId=${videoId}${selectedXoilacSourceId ? `&sourceId=${selectedXoilacSourceId}` : ''}`;
+          const r = await fetch(query);
+          if (!dead) setResolving(false);
+          const j = await r.json().catch(() => ({}));
+          if (dead) return;
+
+          if (j.success && j.hlsUrl) {
+            setIsLive(true);
+            setXoilacSources(j.allSources || []);
+            setActiveXoilacSource(j.activeSource || null);
+            setDegraded(`⚽ Xoilac TV · ${j.activeSource?.name || 'Trực tiếp'}`);
+            await startShaka(j.hlsUrl);
+            return;
+          } else {
+            showError(j?.error || 'Không tải được luồng Xoilac');
+            return;
+          }
+        }
+
+        // Một request duy nhất quyết định tất cả: nguồn nào, dựng được DASH không.
         const r = await fetch(`/api/streams/${videoId}`);
         if (!dead) setResolving(false);
         const j = await r.json().catch(() => ({}));
@@ -423,7 +448,7 @@ export default function Player({
         el.load(); // bắt buộc: chỉ xoá src thôi thì request vẫn chạy
       }
     };
-  }, [videoId, attachDual, autoplay]);
+  }, [videoId, attachDual, autoplay, selectedXoilacSourceId]);
 
   /* ---------------- đếm giây trong lúc chờ ---------------- */
 
@@ -1166,6 +1191,13 @@ export default function Player({
               <div className="anim-pop absolute bottom-12 right-0 min-w-[220px] origin-bottom-right overflow-hidden rounded-xl bg-yt-hover/95 py-2 text-sm shadow-2xl backdrop-blur">
                 {menu === 'settings' && (
                   <>
+                    {xoilacSources.length > 0 && (
+                      <MenuRow
+                        label="Nguồn phát (Server)"
+                        value={activeXoilacSource?.name || 'Mặc định'}
+                        onClick={() => setMenu('xoilacSource')}
+                      />
+                    )}
                     <MenuRow
                       label="Tốc độ phát"
                       value={speed === 1 ? 'Chuẩn' : `${speed}x`}
@@ -1182,6 +1214,23 @@ export default function Player({
                     />
                   </>
                 )}
+
+                {menu === 'xoilacSource' &&
+                  xoilacSources.map((src) => (
+                    <button
+                      key={src.id}
+                      onClick={() => {
+                        setSelectedXoilacSourceId(src.id);
+                        setActiveXoilacSource(src);
+                        setMenu(null);
+                      }}
+                      className={`block w-full px-4 py-2 text-left hover:bg-white/10 ${
+                        activeXoilacSource?.id === src.id ? 'font-semibold text-emerald-400' : ''
+                      }`}
+                    >
+                      ⚽ {src.name}
+                    </button>
+                  ))}
 
                 {menu === 'speed' &&
                   [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].map((s) => (

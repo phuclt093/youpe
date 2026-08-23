@@ -143,6 +143,26 @@ export default function Header({ onToggleMenu }: { onToggleMenu: () => void }) {
 
       {/* phải */}
       <div className={`flex items-center gap-2 ${mobileSearch ? 'hidden' : 'flex'}`}>
+        {/* Switcher Nguồn Nhanh (YouTube <-> Xoilac) */}
+        <div className="hidden lg:flex items-center rounded-full bg-yt-chip p-1 border border-yt-border text-xs font-medium mr-1">
+          <button
+            onClick={() => router.push('/')}
+            className="flex items-center gap-1.5 rounded-full px-3 py-1 text-yt-text hover:bg-yt-hover transition"
+            title="Chuyển sang nguồn YouTube"
+          >
+            <span className="h-2 w-2 rounded-full bg-red-500"></span>
+            YouTube
+          </button>
+          <button
+            onClick={() => router.push('/xoilac')}
+            className="flex items-center gap-1.5 rounded-full px-3 py-1 text-yt-text hover:bg-yt-hover transition"
+            title="Chuyển sang nguồn Xoilac Trực Tiếp Bóng Đá"
+          >
+            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            Xoilac
+          </button>
+        </div>
+
         <button
           className="rounded-full p-2 hover:bg-yt-hover sm:hidden"
           onClick={() => setMobileSearch(true)}

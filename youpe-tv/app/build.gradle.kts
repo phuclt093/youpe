@@ -18,10 +18,25 @@ android {
         versionName = "0.1.0"
     }
 
+    signingConfigs {
+        create("release") {
+            // Ký tạm bằng debug keystore mặc định của máy (tự sinh khi build debug lần đầu) —
+            // đủ để cài thẳng lên TV box qua adb/USB, KHÔNG dùng để phát hành lên Play Store.
+            val debugKeystore = file(System.getProperty("user.home") + "/.android/debug.keystore")
+            if (debugKeystore.exists()) {
+                storeFile = debugKeystore
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            signingConfig = signingConfigs.getByName("release")
         }
         debug {
             applicationIdSuffix = ".debug"

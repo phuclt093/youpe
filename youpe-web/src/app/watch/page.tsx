@@ -31,15 +31,58 @@ export default function WatchPage() {
   const [mix, setMix] = useState<{ source: string; count: number }[]>([]);
   const [loadingRelated, setLoadingRelated] = useState(true);
 
+  const searchParams = useSearchParams();
+  const sourceParam = searchParams.get('source');
+  const isXoilac = id.startsWith('xl_') || sourceParam === 'xoilac';
+
   useEffect(() => {
     if (!id) return;
     setData(null);
     setErr('');
-    fetch(`/api/video/${id}`)
-      .then((r) => r.json())
-      .then((j) => (j.error ? setErr(j.error) : setData(j)))
-      .catch((e) => setErr(String(e)));
-  }, [id]);
+
+    if (isXoilac) {
+      fetch(`/api/xoilac/stream?matchId=${encodeURIComponent(id)}`)
+        .then((r) => r.json())
+        .then((j) => {
+          if (!j.success || !j.match) {
+            setErr(j.error || 'Không tìm thấy thông tin trận đấu Xoilac');
+            return;
+          }
+          const m = j.match;
+          setData({
+            id: m.id,
+            title: `⚽ [Xoilac TV] ${m.homeTeam.name} vs ${m.awayTeam.name} (${m.score}) - ${m.league}`,
+            description: `Trực tiếp trận đấu ${m.title} thuộc giải ${m.league}.\nTrạng thái: ${m.matchTime}.\nTỷ số hiện tại: ${m.score}.\nBình luận viên: ${m.commentator || 'Xoilac TV'}.`,
+            views: null,
+            viewsText: m.matchTime,
+            likes: null,
+            likesText: 'Yêu thích',
+            publishedText: m.league,
+            isLive: true,
+            durationSec: null,
+            keywords: ['xoilac', 'bóng đá', m.homeTeam.name, m.awayTeam.name],
+            channel: {
+              id: 'xoilac_tv',
+              name: 'Xôi Lạc TV · Trực Tiếp Bóng Đá',
+              avatar: m.homeTeam.logo || m.thumbnail || 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=100&auto=format&fit=crop&q=80',
+              subsText: m.commentator ? `🎙️ ${m.commentator}` : 'Trực tiếp chất lượng cao',
+              verified: true,
+            },
+            related: [],
+            manifest: '',
+            manifestType: 'hls',
+            captions: [],
+            storyboard: null,
+          });
+        })
+        .catch((e) => setErr(String(e)));
+    } else {
+      fetch(`/api/video/${id}`)
+        .then((r) => r.json())
+        .then((j) => (j.error ? setErr(j.error) : setData(j)))
+        .catch((e) => setErr(String(e)));
+    }
+  }, [id, isXoilac]);
 
   // đưa video cho trình phát dùng chung — nó sống ngoài cây trang nên
   // chuyển trang không làm video nạp lại
