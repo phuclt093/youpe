@@ -1,18 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getYT, videosFrom } from '@/lib/innertube';
+import { browse, firstOk, homeAttempts, type Attempt } from '@/lib/feeds';
 import { topicByKey } from '@/lib/topics';
-import type { VideoItem } from '@/lib/types';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
-
-/** browse thô — cho các feed youtubei.js không bọc sẵn (vd trending) */
-async function browse(yt: any, browseId: string, params?: string) {
-  const payload: any = { browseId, parse: true };
-  if (params) payload.params = params;
-  return yt.actions.execute('/browse', payload);
-}
 
 /**
  * Giữ lại đối tượng feed của lần gọi trước để còn gọi getContinuation() được.
@@ -32,26 +25,6 @@ function getCursor(key: string) {
   const hit = cursors.get(key);
   if (!hit || Date.now() - hit.at > CURSOR_TTL) return null;
   return hit.feed;
-}
-
-/** Chạy lần lượt các cách lấy feed, cách nào ra video thì dùng */
-async function firstOk(
-  attempts: { name: string; run: () => Promise<any> }[]
-): Promise<{ videos: VideoItem[]; via: string; feed: any; errors: string[] }> {
-  const errors: string[] = [];
-
-  for (const a of attempts) {
-    try {
-      const feed = await a.run();
-      const videos = videosFrom(feed, 48);
-      if (videos.length) return { videos, via: a.name, feed, errors };
-      errors.push(`${a.name}: rỗng`);
-    } catch (e: any) {
-      errors.push(`${a.name}: ${e?.message ?? e}`);
-    }
-  }
-
-  return { videos: [], via: 'none', feed: null, errors };
 }
 
 export async function GET(req: NextRequest) {
@@ -79,15 +52,10 @@ export async function GET(req: NextRequest) {
     }
 
     /* ---------- nạp lần đầu ---------- */
-    let attempts: { name: string; run: () => Promise<any> }[];
+    let attempts: Attempt[];
 
     if (topic.kind === 'home') {
-      attempts = [
-        { name: 'getHomeFeed', run: () => yt.getHomeFeed() },
-        { name: 'browse:FEwhat_to_watch', run: () => browse(yt, 'FEwhat_to_watch') },
-        { name: 'browse:FEtrending', run: () => browse(yt, 'FEtrending') },
-        { name: 'search:fallback', run: () => yt.search('video hay', { type: 'video' }) },
-      ];
+      attempts = homeAttempts(yt);
     } else if (topic.kind === 'browse') {
       attempts = [
         { name: `browse:${topic.browseId}`, run: () => browse(yt, topic.browseId!, topic.params) },

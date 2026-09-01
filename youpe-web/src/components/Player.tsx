@@ -147,6 +147,35 @@ export default function Player({
   }, [menu]);
 
   /**
+   * Bản sao của trạng thái luồng, dành riêng cho listener của thẻ media.
+   *
+   * Effect gắn listener chỉ chạy một lần (deps là [onEnded]) nên closure của nó
+   * giữ mãi giá trị của lần render đầu: `mode` luôn là 'dash', `dualList` luôn là
+   * null. Vì vậy nhánh "lỗi codec thì thử format kế tiếp" trong onErr chưa từng
+   * chạy — mọi lỗi đều rơi thẳng xuống câu "Thẻ video báo lỗi 4".
+   *
+   * Không đưa vào deps vì gắn/gỡ 17 listener mỗi lần đổi chất lượng là lãng phí,
+   * mà gỡ đúng lúc thẻ media đang lỗi còn dễ nuốt mất sự kiện. Soi qua ref là đủ.
+   */
+  const modeRef = useRef<Mode>('dash');
+  const dualListRef = useRef<RawFormat[] | null>(null);
+  const dualAudioRef = useRef<RawFormat | null>(null);
+  const tracksRef = useRef<Track[]>([]);
+
+  useEffect(() => {
+    modeRef.current = mode;
+  }, [mode]);
+  useEffect(() => {
+    dualListRef.current = dualList;
+  }, [dualList]);
+  useEffect(() => {
+    dualAudioRef.current = dualAudio;
+  }, [dualAudio]);
+  useEffect(() => {
+    tracksRef.current = tracks;
+  }, [tracks]);
+
+  /**
    * Trình duyệt chặn tự phát khi có tiếng và người dùng chưa tương tác với trang.
    * Thử phát có tiếng trước; bị chặn thì tắt tiếng phát tiếp rồi hiện nút bật tiếng.
    */
@@ -499,19 +528,55 @@ export default function Player({
       setMuted(v.muted);
     };
     const onRate = () => setSpeed(v.playbackRate);
+    /**
+     * Thẻ <video> chỉ nói được "Format error" cho mọi thứ nó không mở được — kể cả
+     * khi thật ra proxy trả về 403 chứ chẳng có byte media nào. Hỏi lại proxy đúng
+     * URL đó (xin 2 byte đầu) để biết lý do thật rồi nói cho người xem.
+     */
+    const explainFromProxy = async (url: string) => {
+      if (!url || !url.includes('/api/stream')) return;
+      try {
+        const r = await fetch(url, { headers: { Range: 'bytes=0-1' }, cache: 'no-store' });
+        if (r.ok) return; // proxy vẫn trả media bình thường → đúng là lỗi codec thật
+
+        // Trong lúc chờ, người xem có thể đã đổi video hoặc đổi chất lượng —
+        // lúc đó thông báo này nói về một luồng không còn ai quan tâm nữa.
+        const cur = videoRef.current;
+        if (!cur || (cur.currentSrc || cur.src) !== url) return;
+
+        const body = (await r.text().catch(() => '')).slice(0, 300);
+        setError(
+          r.status === 403
+            ? 'YouTube từ chối luồng này (403). Đường dẫn đã hết hạn hoặc cần header của ' +
+                'player client khác — bấm Thử lại để lấy luồng mới.'
+            : `Không tải được luồng (HTTP ${r.status}).`
+        );
+        setErrorDetail(body);
+      } catch {
+        /* mất mạng hẳn — giữ nguyên thông báo của thẻ video */
+      }
+    };
+
     const onErr = () => {
       const code = v.error?.code;
-      if (code) {
-        if ((code === 4 || code === 3) && mode === 'dual' && dualList && dualList.length > 0) {
-          console.warn(`[Player] HTMLVideoElement error ${code}, trying next stream format...`);
-          const curIndex = tracks.findIndex((t) => t.active);
-          if (curIndex >= 0 && curIndex + 1 < dualList.length) {
-            attachDual(dualList, dualAudio, curIndex + 1);
-            return;
-          }
+      if (!code) return;
+
+      // Đọc qua ref: state trong closure này đã cũ từ lần render đầu
+      const list = dualListRef.current;
+      if ((code === 4 || code === 3) && modeRef.current === 'dual' && list?.length) {
+        const curIndex = tracksRef.current.findIndex((t) => t.active);
+        if (curIndex >= 0 && curIndex + 1 < list.length) {
+          console.warn(
+            `[Player] thẻ video lỗi ${code} — thử format kế tiếp (${curIndex + 2}/${list.length})`
+          );
+          attachDual(list, dualAudioRef.current, curIndex + 1);
+          return;
         }
-        setError(`Thẻ video báo lỗi ${code}: ${v.error?.message || 'không rõ'}`);
       }
+
+      setBuffering(false);
+      setError(`Thẻ video báo lỗi ${code}: ${v.error?.message || 'không rõ'}`);
+      void explainFromProxy(v.currentSrc || v.src);
     };
 
     const events: [string, EventListener][] = [
@@ -543,7 +608,9 @@ export default function Player({
       clearInterval(poll);
       events.forEach(([n, h]) => v.removeEventListener(n, h));
     };
-  }, [onEnded]);
+    // attachDual là useCallback([]) nên định danh không đổi — thêm vào đây chỉ để
+    // đúng quy tắc, không làm effect chạy lại.
+  }, [onEnded, attachDual]);
 
   /* ---------------- tiến độ xem ---------------- */
 

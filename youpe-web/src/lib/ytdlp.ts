@@ -26,6 +26,32 @@ function cleanCodec(c?: string): string {
   return c.split('.').slice(0, 4).join('.');
 }
 
+/**
+ * Header nào của yt-dlp thì đáng giữ lại.
+ *
+ * Danh sách trắng, không bê nguyên `http_headers`: chỉ những header thật sự ảnh
+ * hưởng tới việc googlevideo chấp nhận hay từ chối. Quan trọng nhất là
+ * `User-Agent` — googlevideo ràng URL với đúng client sinh ra nó, gửi sai là 403.
+ */
+const KEEP_HEADERS = new Set([
+  'user-agent',
+  'referer',
+  'origin',
+  'cookie',
+  'accept-language',
+  'x-goog-visitor-id',
+  'sec-fetch-mode',
+]);
+
+function pickHeaders(h: any): Record<string, string> | undefined {
+  if (!h || typeof h !== 'object') return undefined;
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(h)) {
+    if (typeof v === 'string' && KEEP_HEADERS.has(k.toLowerCase())) out[k] = v;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
 function mimeOf(ext: string, kind: 'video' | 'audio' | 'muxed'): string {
   const container =
     ext === 'webm' ? 'webm' : ext === 'm4a' || ext === 'mp4' ? 'mp4' : ext || 'mp4';
@@ -390,6 +416,9 @@ export async function getFromYtdlp(id: string): Promise<PipedResult> {
       audioSampleRate: num(f.asr),
       audioChannels: num(f.audio_channels),
       contentLength: num(f.filesize) ?? num(f.filesize_approx),
+      // yt-dlp tự chọn player client và mỗi client cần một User-Agent riêng —
+      // không mang theo là proxy gọi bằng UA sai rồi ăn 403.
+      headers: pickHeaders(f.http_headers) ?? pickHeaders(j.http_headers),
     });
   }
 

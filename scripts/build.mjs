@@ -117,7 +117,10 @@ if (!version) {
   const days = d ? Math.floor((Date.now() - Date.UTC(+d[1], +d[2] - 1, +d[3])) / 86_400_000) : 0;
 
   /*
-    Bước prepare:web luôn tải bản mới nhất, nên đây chỉ là thông tin.
+    Con số này là bản ĐANG có trong youpe-web/bin, chưa phải bản sẽ được đóng gói:
+    bước `prepare:web` (chạy ngay trước electron-builder) luôn tải lại bản mới nhất,
+    trừ khi đặt YOUPE_SKIP_YTDLP=1. Nên ở chế độ --check thì đây là con số thật,
+    còn khi build đầy đủ thì chỉ là điểm xuất phát.
 
     Đừng đọc con số này thành "cần cập nhật": yt-dlp có lúc cả tháng không ra bản
     ổn định mới, và bản cũ vẫn có thể đang là bản mới nhất. Đã đo ngày 10/08/2026 —
@@ -126,6 +129,11 @@ if (!version) {
   */
   if (days > 30) c.warn(`Bản ${version} đã ${days} ngày tuổi — có thể đây vẫn là bản mới nhất.`);
   else c.ok(`${version} (${days} ngày tuổi)`);
+
+  if (checkOnly) c.ok('Build đầy đủ sẽ tự tải lại bản mới nhất ở bước đóng gói.');
+  else if (process.env.YOUPE_SKIP_YTDLP === '1')
+    c.warn('YOUPE_SKIP_YTDLP=1 — bước đóng gói sẽ KHÔNG tải bản mới, gói nguyên bản trên.');
+  else c.ok('Bước đóng gói sẽ tải lại bản mới nhất trước khi gói.');
 }
 
 /* ---------------- 5. Cấu hình kho dữ liệu ---------------- */

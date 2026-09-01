@@ -24,6 +24,13 @@ export default function HomePage() {
   const [err, setErr] = useState('');
   /** Trang chủ được trộn từ đâu — hiện thành một dòng nhỏ cho biết vì sao thấy mấy video này */
   const [mix, setMix] = useState<{ source: string; count: number }[]>([]);
+  /*
+    Nút "Thử lại" trước đây gọi router.refresh(). Trang này nạp dữ liệu bằng
+    useEffect ở phía client, mà refresh() chỉ làm mới phần server component —
+    effect không chạy lại, nên bấm nút không có gì xảy ra. Tăng số đếm này
+    mới thực sự gọi lại API.
+  */
+  const [retry, setRetry] = useState(0);
 
   const sentinel = useRef<HTMLDivElement>(null);
   const seen = useRef(new Set<string>());
@@ -89,7 +96,7 @@ export default function HomePage() {
     return () => {
       alive = false;
     };
-  }, [tab]);
+  }, [tab, retry]);
 
   /* ---------- nạp thêm ---------- */
   const loadMore = useCallback(async () => {
@@ -146,15 +153,26 @@ export default function HomePage() {
         </p>
       )}
 
-      {err && !videos.length && !loading && (
+      {/*
+        Điều kiện cũ là `err && ...`, nghĩa là API trả 200 kèm mảng rỗng mà không
+        báo lỗi thì trang chủ **không vẽ gì cả** — người dùng nhìn thấy một màn hình
+        đen tuyền, không biết là đang tải, hỏng, hay hết nội dung. Rỗng thì luôn
+        phải nói một câu.
+      */}
+      {!loading && !videos.length && (
         <div className="grid place-items-center py-20 text-center">
           <svg viewBox="0 0 24 24" className="mb-3 h-12 w-12 text-yt-sub" fill="currentColor" aria-hidden>
             <path d="M12 2a10 10 0 100 20 10 10 0 000-20zm0 18a8 8 0 110-16 8 8 0 010 16zm-1-5h2v2h-2v-2zm0-8h2v6h-2V7z" />
           </svg>
-          <p className="text-base">Không tải được nội dung</p>
-          <p className="mt-1 max-w-lg text-sm text-yt-sub">{err}</p>
+          <p className="text-base">
+            {err ? 'Không tải được nội dung' : 'Chưa có video nào để hiện'}
+          </p>
+          <p className="mt-1 max-w-lg text-sm text-yt-sub">
+            {err ||
+              'YouTube không trả về video nào cho feed này. Thử lại, hoặc mở /api/debug/<videoId> để xem tầng nào đang hỏng.'}
+          </p>
           <button
-            onClick={() => router.refresh()}
+            onClick={() => setRetry((n) => n + 1)}
             className="mt-4 rounded-full bg-yt-chip px-4 py-2 text-sm font-medium hover:bg-yt-chip2"
           >
             Thử lại

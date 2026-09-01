@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getYT } from '@/lib/innertube';
+import { getYT, ytMode } from '@/lib/innertube';
 import { playableFormats } from '@/lib/player';
 import { getFromFallback } from '@/lib/piped';
 import {
@@ -118,7 +118,16 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   else ket_luan = 'Không nguồn nào dùng được.';
 
   return NextResponse.json(
-    { id, ket_luan, ytdlp, innertube_usable_clients: usable, innertube, fallback },
+    {
+      id,
+      ket_luan,
+      // 'full' = có player; 'no-player' = tải player hỏng, đã hạ cấp; null = chưa khởi tạo được
+      innertube_mode: ytMode(),
+      ytdlp,
+      innertube_usable_clients: usable,
+      innertube,
+      fallback,
+    },
     { status: 200 }
   );
 }

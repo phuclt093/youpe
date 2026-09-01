@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getYT, videosFrom } from '@/lib/innertube';
+import { getYT } from '@/lib/innertube';
+import { firstOk, homeAttempts } from '@/lib/feeds';
 import { buildHome } from '@/lib/recommend';
 
 export const runtime = 'nodejs';
@@ -34,21 +35,36 @@ export async function POST(req: NextRequest) {
       Lấy feed chung trước, dùng cho hai việc: làm nguồn "khám phá" trong bộ trộn,
       và làm phương án dự phòng nếu chưa có tín hiệu cá nhân hoá nào.
     */
-    let general: any[] = [];
-    try {
-      const feed = await yt.getHomeFeed();
-      general = videosFrom(feed, 48);
-    } catch {
-      general = [];
+    /*
+      Dùng chung chuỗi dự phòng với /api/feed thay vì gọi trần `getHomeFeed()`.
+
+      Chỗ này trước đây là `try { getHomeFeed() } catch { general = [] }`: YouTube đổi
+      cấu trúc feed chủ là trang chủ đen thui, không một dòng thông báo — vì lỗi bị
+      nuốt, `videos` rỗng, mà rỗng thì phía giao diện chẳng có nhánh nào để vẽ. Giờ
+      hỏng thì còn FEwhat_to_watch, FEtrending, rồi tìm kiếm để bấu víu.
+    */
+    const { videos: general, via, errors } = await firstOk(homeAttempts(yt));
+
+    if (!general.length) {
+      console.error('[api/home] không nguồn nào ra video —', errors.join(' | '));
+    } else if (via !== 'getHomeFeed') {
+      console.warn(`[api/home] getHomeFeed hỏng, đang dùng ${via} — ${errors.join(' | ')}`);
     }
 
     const { videos, mix } = await buildHome(yt, general, { channelIds, seedTitles, watchedIds });
 
     if (!videos.length) {
-      return NextResponse.json({ videos: general, mix: [], personalized: false });
+      return NextResponse.json({
+        videos: general,
+        mix: [],
+        personalized: false,
+        via,
+        // Rỗng thì PHẢI nói vì sao, nếu không giao diện chỉ còn cách hiện màn hình trắng
+        error: general.length ? undefined : `Không nguồn nào trả về video. ${errors.join(' | ')}`,
+      });
     }
 
-    return NextResponse.json({ videos, mix, personalized: true });
+    return NextResponse.json({ videos, mix, personalized: true, via });
   } catch (e: any) {
     console.error('[api/home] hỏng:', e);
     return NextResponse.json({ error: e?.message ?? 'lỗi trang chủ', videos: [] }, { status: 500 });

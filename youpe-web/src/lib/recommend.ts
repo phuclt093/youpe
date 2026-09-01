@@ -1,4 +1,5 @@
 import { collectVideos, videosFrom } from './innertube';
+import { firstOk, homeAttempts } from './feeds';
 import type { VideoItem } from './types';
 
 /**
@@ -92,9 +93,22 @@ async function searchBucket(
 
 async function trendingBucket(yt: any): Promise<Bucket> {
   const items = await cached('trending', 30 * 60_000, async () => {
+    /*
+      `/browse` có lúc trả về thứ youtubei.js không bóc ra được video nào — đo ngày
+      01/09/2026: FEtrending, FEwhat_to_watch và getHomeFeed cùng rỗng trong khi
+      search vẫn chạy. Không có nhánh lui thì rổ này rỗng theo và cột gợi ý mất
+      hẳn một nguồn mà chẳng ai hay.
+    */
     try {
       const res = await yt.actions.execute('/browse', { browseId: 'FEtrending', parse: true });
-      return collectVideos(res, 30);
+      const items = collectVideos(res, 30);
+      if (items.length) return items;
+    } catch {
+      /* rơi xuống tìm kiếm */
+    }
+
+    try {
+      return videosFrom(await yt.search('thịnh hành', { type: 'video' }), 30);
     } catch {
       return [];
     }
@@ -218,6 +232,20 @@ export async function buildRelated(
   const videos = interleave(buckets, limit, exclude);
 
   // đánh dấu nguồn của từng video để hiện ra hoặc gỡ lỗi
+  /*
+    Không nguồn nào ra gì thì lấy tạm feed chung — cột gợi ý trống là ngõ cụt:
+    hết video là người xem không còn chỗ nào để đi tiếp. Hay xảy ra khi getInfo()
+    hỏng (mất keywords lẫn tiêu đề để tìm) và người dùng chưa có lịch sử xem.
+  */
+  if (!videos.length) {
+    const { videos: general } = await firstOk(homeAttempts(yt), limit + 1);
+    const picked = general.filter((v) => v.id !== id).slice(0, limit);
+    return {
+      videos: picked,
+      mix: picked.length ? [{ source: 'khám phá', count: picked.length }] : [],
+    };
+  }
+
   const mix = buckets
     .map((b) => ({
       source: b.source,

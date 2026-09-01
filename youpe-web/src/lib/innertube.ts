@@ -3,15 +3,76 @@ import type { VideoItem, ChannelItem, CommentItem } from './types';
 
 let _yt: Promise<Innertube> | null = null;
 
+/** Chế độ đang chạy — /api/debug đọc để biết vì sao thiếu luồng */
+let _mode: 'full' | 'no-player' | null = null;
+
+export function ytMode() {
+  return _mode;
+}
+
+function create(retrievePlayer: boolean): Promise<Innertube> {
+  return Innertube.create({
+    lang: process.env.YT_LANG || 'vi',
+    location: process.env.YT_REGION || 'VN',
+    retrieve_player: retrievePlayer,
+    cache: new UniversalCache(false),
+  });
+}
+
+/**
+ * Khởi tạo InnerTube, dùng chung cho cả app.
+ *
+ * Hai cái bẫy ở đây, cái nào cũng đủ làm trang chủ và cột đề xuất trống trơn
+ * **vĩnh viễn** cho tới khi khởi động lại app:
+ *
+ * 1. `retrieve_player: true` bắt youtubei.js tải và bóc file player JS của YouTube
+ *    để dựng hàm giải mã chữ ký. YouTube đổi cấu trúc file đó vài tháng một lần;
+ *    hễ bản youtubei.js đang dùng chưa theo kịp là `create()` **ném lỗi**, và thế
+ *    là chết cả 12 route dùng InnerTube — kể cả những route chẳng cần giải mã gì
+ *    (trang chủ, tìm kiếm, đề xuất, bình luận chỉ đọc dữ liệu). youpe lấy luồng
+ *    bằng yt-dlp chứ không dựa vào player này, nên mất nó chỉ là mất chút, không
+ *    đáng để đánh đổi cả phần duyệt xem.
+ *
+ * 2. Biến `_yt` giữ *promise* chứ không giữ *kết quả*. Lời gọi đầu mà hỏng — mạng
+ *    chưa lên lúc app khởi động chẳng hạn — thì promise hỏng đó nằm lại trong biến,
+ *    và mọi lời gọi sau nhận đúng lỗi cũ ngay lập tức, không hề thử lại. Mạng lên
+ *    rồi app vẫn trống, restart mới hết.
+ *
+ * Nên: hỏng thì hạ cấp xuống chế độ không player, và không bao giờ giữ promise hỏng.
+ */
 export function getYT(): Promise<Innertube> {
-  if (!_yt) {
-    _yt = Innertube.create({
-      lang: process.env.YT_LANG || 'vi',
-      location: process.env.YT_REGION || 'VN',
-      retrieve_player: true,
-      cache: new UniversalCache(false),
-    });
-  }
+  if (_yt) return _yt;
+
+  _yt = (async () => {
+    if (process.env.YT_SKIP_PLAYER === '1') {
+      const yt = await create(false);
+      _mode = 'no-player';
+      console.info('[innertube] YT_SKIP_PLAYER=1 — chạy ở chế độ chỉ đọc dữ liệu');
+      return yt;
+    }
+
+    try {
+      const yt = await create(true);
+      _mode = 'full';
+      return yt;
+    } catch (e: any) {
+      console.warn(
+        `[innertube] không dựng được player (${e?.message ?? e}) — ` +
+          'hạ xuống chế độ chỉ đọc dữ liệu. Duyệt/tìm kiếm vẫn chạy, ' +
+          'luồng phát vẫn do yt-dlp lo.'
+      );
+      const yt = await create(false);
+      _mode = 'no-player';
+      return yt;
+    }
+  })();
+
+  // Hỏng cả hai chế độ thì xoá đi, để lời gọi sau còn được thử lại
+  _yt.catch(() => {
+    _yt = null;
+    _mode = null;
+  });
+
   return _yt;
 }
 

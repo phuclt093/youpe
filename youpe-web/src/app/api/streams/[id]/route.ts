@@ -13,7 +13,24 @@ export const dynamic = 'force-dynamic';
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   const origin = req.nextUrl.origin;
-  const proxy = (u: string) => `${origin}/api/stream?u=${encodeURIComponent(u)}`;
+
+  /**
+   * Bọc URL qua proxy, mang theo cả bộ header mà nguồn yêu cầu.
+   *
+   * googlevideo ràng mỗi URL với client đã sinh ra nó. yt-dlp giờ tự chọn client
+   * (xem ghi chú trong lib/ytdlp.ts), nên URL của cùng một video có thể cần
+   * User-Agent của iOS, của Android TV hay của trình duyệt — gắn cứng một UA là
+   * ăn 403. Gói header vào `&h=` để /api/stream gửi lại đúng như lúc trích xuất.
+   */
+  const packHeaders = (h?: Record<string, string>) =>
+    h && Object.keys(h).length
+      ? Buffer.from(JSON.stringify(h), 'utf-8').toString('base64url')
+      : '';
+
+  const proxy = (u: string, h?: Record<string, string>) => {
+    const packed = packHeaders(h);
+    return `${origin}/api/stream?u=${encodeURIComponent(u)}${packed ? `&h=${packed}` : ''}`;
+  };
 
   /**
    * Lọc codec cho thiết bị yếu.
@@ -49,7 +66,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       );
 
     const shape = (f: PipedFormat) => ({
-      url: proxy(f.url),
+      url: proxy(f.url, f.headers),
       itag: f.itag,
       mimeType: f.mimeType,
       codecs: f.codecs,

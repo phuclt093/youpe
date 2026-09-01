@@ -27,6 +27,49 @@ function isAllowed(hostname: string): boolean {
   );
 }
 
+/**
+ * Header được phép nhận từ `&h=`.
+ *
+ * Danh sách trắng chứ không nhận bừa: `&h=` nằm trong URL nên bất cứ thứ gì trong
+ * trang cũng dựng được, không lọc thì thành chỗ để bơm header tuỳ ý (Authorization,
+ * X-Forwarded-For…) vào request đi ra ngoài.
+ */
+const ALLOWED_FORWARD_HEADERS = new Set([
+  'user-agent',
+  'referer',
+  'origin',
+  'cookie',
+  'accept-language',
+  'x-goog-visitor-id',
+  'sec-fetch-mode',
+]);
+
+/** Bộ header của một trình duyệt bình thường — đúng cho URL lấy từ InnerTube/Piped */
+const BROWSER_HEADERS: Record<string, string> = {
+  'User-Agent':
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36',
+  Origin: 'https://www.youtube.com',
+  Referer: 'https://www.youtube.com/',
+};
+
+/** Giải mã bộ header do /api/streams gói vào `&h=` (base64url của JSON) */
+function unpackHeaders(packed: string | null): Record<string, string> | null {
+  if (!packed) return null;
+  try {
+    const json = Buffer.from(packed, 'base64url').toString('utf-8');
+    const obj = JSON.parse(json);
+    if (!obj || typeof obj !== 'object') return null;
+
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(obj)) {
+      if (typeof v === 'string' && ALLOWED_FORWARD_HEADERS.has(k.toLowerCase())) out[k] = v;
+    }
+    return Object.keys(out).length ? out : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function GET(req: NextRequest) {
   const raw = req.nextUrl.searchParams.get('u');
   if (!raw) return new NextResponse('missing u', { status: 400 });
@@ -44,12 +87,23 @@ export async function GET(req: NextRequest) {
     return new NextResponse(`host không được phép: ${target.hostname}`, { status: 403 });
   }
 
-  const headers: Record<string, string> = {
-    'User-Agent':
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36',
-    Origin: 'https://www.youtube.com',
-    Referer: 'https://www.youtube.com/',
-  };
+  /**
+   * Header gửi lên googlevideo.
+   *
+   * Mặc định là bộ của trình duyệt — đúng cho URL lấy từ InnerTube/Piped. Nhưng
+   * yt-dlp tự chọn player client, và googlevideo **ràng mỗi URL với đúng client
+   * đã sinh ra nó**: URL do client `ios` tạo mà gọi kèm User-Agent Chrome thì bị
+   * trả 403, thẻ <video> nhận về trang lỗi rồi báo "Format error" — nhìn y hệt
+   * lỗi codec nên rất dễ lần nhầm hướng.
+   *
+   * Nên khi `&h=` có mặt (do /api/streams gói bộ `http_headers` mà yt-dlp trả về),
+   * bộ đó **thay thế hoàn toàn** mặc định — trộn lẫn còn tệ hơn, vì Origin/Referer
+   * của trình duyệt dính vào request kiểu iOS cũng đủ để bị từ chối.
+   */
+  const fromSource = unpackHeaders(req.nextUrl.searchParams.get('h'));
+
+  const headers: Record<string, string> = fromSource ?? BROWSER_HEADERS;
+
   /**
    * `?cap=<byte>` — chỉ lấy phần đầu file. Dùng cho đoạn xem trước khi rê chuột.
    *
@@ -80,11 +134,33 @@ export async function GET(req: NextRequest) {
     range = `bytes=${start}-${end}`;
   }
 
-  if (range) headers['Range'] = range;
+  const fetchWith = (h: Record<string, string>) =>
+    fetch(target.toString(), {
+      headers: range ? { ...h, Range: range } : h,
+      cache: 'no-store',
+      redirect: 'follow',
+    });
 
   let upstream: Response;
   try {
-    upstream = await fetch(target.toString(), { headers, cache: 'no-store', redirect: 'follow' });
+    upstream = await fetchWith(headers);
+
+    /**
+     * 403 rồi thì thử nốt bộ header còn lại.
+     *
+     * Bộ của yt-dlp thường đúng, nhưng không phải luôn: có client yt-dlp không kèm
+     * `http_headers` đầy đủ, và ngược lại có URL lấy từ InnerTube lại cần UA lạ.
+     * Một lần thử thêm rẻ hơn nhiều so với việc người xem thấy màn hình lỗi.
+     */
+    if (upstream.status === 403) {
+      const alt = fromSource ? BROWSER_HEADERS : null;
+      if (alt) {
+        console.warn('[stream] 403 với header của nguồn — thử lại bằng header trình duyệt');
+        const retry = await fetchWith(alt);
+        if (retry.ok) upstream = retry;
+        else void retry.body?.cancel();
+      }
+    }
   } catch (e: any) {
     return new NextResponse(`upstream lỗi: ${e?.message ?? e}`, { status: 502 });
   }
@@ -104,6 +180,10 @@ export async function GET(req: NextRequest) {
   if (upstream.ok && looksLikePlaylist) {
     const text = await upstream.text();
     const base = target.toString();
+    // Giữ nguyên `&h=` cho playlist con và segment: chúng cũng đi tới googlevideo
+    // và cũng cần đúng bộ header đó, thiếu là 403 y như luồng chính.
+    const packed = req.nextUrl.searchParams.get('h');
+    const suffix = packed ? `&h=${packed}` : '';
     const self = `${req.nextUrl.origin}/api/stream?u=`;
 
     const rewritten = text
@@ -116,13 +196,13 @@ export async function GET(req: NextRequest) {
         if (t.startsWith('#')) {
           return line.replace(
             /URI="([^"]+)"/g,
-            (_m, u) => `URI="${self}${encodeURIComponent(new URL(u, base).toString())}"`
+            (_m, u) => `URI="${self}${encodeURIComponent(new URL(u, base).toString())}${suffix}"`
           );
         }
 
         // dòng còn lại là đường dẫn, có thể tương đối
         try {
-          return self + encodeURIComponent(new URL(t, base).toString());
+          return self + encodeURIComponent(new URL(t, base).toString()) + suffix;
         } catch {
           return line;
         }
@@ -174,7 +254,41 @@ export async function GET(req: NextRequest) {
   }
 
   out.set('Access-Control-Allow-Origin', '*');
-  out.set('Access-Control-Expose-Headers', 'Content-Length, Content-Range, Accept-Ranges');
+  out.set(
+    'Access-Control-Expose-Headers',
+    'Content-Length, Content-Range, Accept-Ranges, X-Youpe-Upstream-Status'
+  );
+  // Để phía trình phát đọc được lý do thật khi thẻ <video> chỉ nói "Format error"
+  out.set('X-Youpe-Upstream-Status', String(upstream.status));
+
+  /**
+   * Câu trả lời hỏng thì TUYỆT ĐỐI không cache.
+   *
+   * Trước đây chỗ này set `private, max-age=3600` cho mọi phản hồi. Một cái 403 của
+   * googlevideo (URL hết hạn, sai User-Agent…) thế là nằm lại trong cache đĩa của
+   * trình duyệt nguyên một tiếng: bấm "Thử lại" bao nhiêu lần cũng vô ích vì request
+   * không hề đi ra ngoài nữa, và trong tab Network nó hiện "(disk cache)" — trông
+   * như server vẫn đang từ chối, trong khi thật ra chưa ai hỏi lại lần nào.
+   */
+  if (!upstream.ok) {
+    out.set('Cache-Control', 'no-store');
+    out.delete('content-length');
+    out.set('Content-Type', 'text/plain; charset=utf-8');
+
+    console.warn(`[stream] upstream ${upstream.status} — ${target.hostname}${target.pathname}`);
+
+    // không đọc body nữa thì đóng luôn, đừng để kết nối treo
+    void upstream.body?.cancel();
+
+    // Nuốt luôn body của upstream: đó là trang lỗi HTML, đưa cho thẻ <video> thì nó
+    // chỉ biết kêu "Format error". Trả câu ngắn gọn nói đúng chuyện gì đã xảy ra.
+    return new NextResponse(
+      `upstream ${upstream.status} — googlevideo từ chối URL này` +
+        (fromSource ? '' : ' (không có header của nguồn kèm theo)'),
+      { status: upstream.status, headers: out }
+    );
+  }
+
   out.set('Cache-Control', 'private, max-age=3600');
 
   return new NextResponse(upstream.body, { status: upstream.status, headers: out });

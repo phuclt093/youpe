@@ -27,6 +27,15 @@ export type PipedFormat = {
   indexStart?: number;
   indexEnd?: number;
   contentLength?: number;
+  /**
+   * Header bắt buộc phải gửi kèm khi tải URL này.
+   *
+   * googlevideo ràng mỗi URL với đúng client đã sinh ra nó: URL do client `ios`
+   * tạo mà gọi bằng User-Agent của Chrome thì bị trả 403. yt-dlp báo sẵn bộ
+   * header đúng cho từng format ở `http_headers` — giữ lại để proxy dùng nguyên,
+   * thay vì gắn cứng một User-Agent cho mọi thứ.
+   */
+  headers?: Record<string, string>;
 };
 
 export type PipedResult = {
