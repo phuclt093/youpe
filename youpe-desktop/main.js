@@ -104,20 +104,29 @@ function ytdlpPath() {
  * Đặt ở thư mục dữ liệu thì file sống sót qua các lần cập nhật app, và mỗi máy
  * tự khai token của mình.
  */
-function userEnv() {
-  const file = path.join(userDataDir(), 'youpe.env');
-  if (!fs.existsSync(file)) return {};
-
+function readEnvFile(file) {
   const out = {};
+  if (!fs.existsSync(file)) return out;
   for (const line of fs.readFileSync(file, 'utf-8').split('\n')) {
     const m = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/.exec(line);
     if (!m) continue; // dòng trống và dòng ghi chú (#) tự rơi vào đây
     const value = m[2].trim().replace(/^["']|["']$/g, '');
     if (value) out[m[1]] = value;
   }
+  return out;
+}
+
+function userEnv() {
+  const file = path.join(userDataDir(), 'youpe.env');
+
+  // Bản `link:db` cũ ghi nhầm vào `<appData>/youpe/data` (thiếu "-desktop").
+  // Đọc cả chỗ đó làm nền để máy nào chưa chạy lại lệnh vẫn nhận được Turso;
+  // file đúng chỗ (nếu có) được quyền đè lên.
+  const legacy = path.join(app.getPath('appData'), 'youpe', 'data', 'youpe.env');
+  const out = { ...readEnvFile(legacy), ...readEnvFile(file) };
 
   const keys = Object.keys(out);
-  if (keys.length) console.log(`[youpe] đọc ${keys.length} biến từ ${file}: ${keys.join(', ')}`);
+  if (keys.length) console.log(`[youpe] đọc ${keys.length} biến từ youpe.env: ${keys.join(', ')}`);
   return out;
 }
 

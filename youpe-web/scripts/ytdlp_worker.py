@@ -19,6 +19,7 @@ import sys
 
 try:
     from yt_dlp import YoutubeDL
+    from yt_dlp.version import __version__ as YTDLP_VERSION
 except ImportError:
     print(json.dumps({"ready": False, "error": "chua cai yt_dlp"}), flush=True)
     sys.exit(1)
@@ -35,8 +36,9 @@ def base_opts():
         "socket_timeout": int(sys.argv[1]) if len(sys.argv) > 1 else 5,
         "retries": 1,
         "extractor_retries": 1,
-        # bỏ qua trang xem và file config của player: bớt 2 request mỗi video
-        "extractor_args": {"youtube": {"player_skip": ["webpage", "configs"]}},
+        # Không đặt player_skip nữa: bỏ trang xem/config thì yt-dlp thiếu visitor
+        # data và player JS, URL trả về dễ bị googlevideo từ chối. Giữ y hệt cách
+        # gọi file exe để hai đường cho ra cùng một kết quả.
     }
 
     cookies_browser = sys.argv[2] if len(sys.argv) > 2 else ""
@@ -57,7 +59,9 @@ opts_all = base_opts()
 opts_all["extractor_args"] = {"youtube": {"player_client": ["all"]}}
 ydl_all = YoutubeDL(opts_all)
 
-print(json.dumps({"ready": True}), flush=True)
+# Báo kèm phiên bản: phía Node so với bản exe gói kèm và từ chối worker cũ hơn.
+# yt_dlp cài qua apt/pip từ lâu vẫn "chạy được" nhưng trả URL mà googlevideo 403.
+print(json.dumps({"ready": True, "version": YTDLP_VERSION}), flush=True)
 
 for line in sys.stdin:
     line = line.strip()

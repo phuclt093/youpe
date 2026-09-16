@@ -49,7 +49,8 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   const t0 = Date.now();
 
   try {
-    const { result, tried, cached } = await resolveStreams(id);
+    const fresh = req.nextUrl.searchParams.get('fresh') === '1';
+    const { result, tried, cached } = await resolveStreams(id, { fresh });
     const ms = Date.now() - t0;
     console.info(
       `[streams ${id}] ${result.source} · ${ms}ms${cached ? ' (cache)' : ''} · ${result.formats.length} format`

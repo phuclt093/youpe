@@ -111,7 +111,8 @@ const cache = new Map<string, { at: number; outcome: ResolveOutcome }>();
  */
 const dataDir = process.env.YOUPE_DATA_DIR || path.resolve(process.cwd(), 'data');
 // đổi tên khi cấu trúc dữ liệu thay đổi, để bản ghi cũ tự bị bỏ qua
-const cacheFile = path.join(dataDir, 'stream-cache-v2.json');
+// v3 (16/09/2026): bỏ toàn bộ URL do worker yt_dlp cũ sinh ra — chúng đều 403
+const cacheFile = path.join(dataDir, 'stream-cache-v3.json');
 
 let flushTimer: NodeJS.Timeout | null = null;
 
@@ -180,8 +181,21 @@ function prune() {
  * Mặc định: yt-dlp -> InnerTube -> Piped/Invidious, nhưng nguồn thắng gần nhất
  * luôn được đẩy lên đầu.
  */
-export async function resolveStreams(id: string): Promise<ResolveOutcome> {
+export async function resolveStreams(
+  id: string,
+  opts: { fresh?: boolean } = {}
+): Promise<ResolveOutcome> {
   prune();
+
+  /*
+    `fresh` — bỏ qua cache. Dùng khi phía trình phát đã biết URL trong cache hỏng
+    (googlevideo trả 403): không có lối này thì bấm "Thử lại" chỉ nhận lại đúng bộ
+    URL chết đó cho tới khi hết TTL 20 phút.
+  */
+  if (opts.fresh) {
+    cache.delete(id);
+    saveDisk();
+  }
 
   const hit = cache.get(id);
   if (hit && Date.now() - hit.at < TTL) return { ...hit.outcome, cached: true };

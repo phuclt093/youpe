@@ -34,6 +34,66 @@ let disabledUntil = 0;
 let warnedNoPython = false;
 const RETRY_AFTER_FAIL = 30 * 60_000;
 
+/** Trạng thái worker — để /api/debug nói rõ đang trích xuất bằng gì */
+export const workerState: {
+  python: string | null;
+  version: string | null;
+  /** Lý do không dùng worker (null = đang dùng hoặc chưa thử) */
+  skipped: string | null;
+} = { python: null, version: null, skipped: null };
+
+/**
+ * So hai số phiên bản yt-dlp kiểu `2026.08.19` / `2026.8.30.232658.dev0`.
+ * Chỉ so phần số theo thứ tự, đủ dùng vì yt-dlp đánh số theo ngày.
+ */
+export function compareYtdlpVersion(a: string, b: string): number {
+  const parts = (v: string) => (v.match(/\d+/g) ?? []).map(Number);
+  const pa = parts(a);
+  const pb = parts(b);
+  for (let i = 0; i < 3; i++) {
+    const d = (pa[i] ?? 0) - (pb[i] ?? 0);
+    if (d) return d;
+  }
+  return 0;
+}
+
+/**
+ * Worker có được phép dùng không, xét theo phiên bản.
+ *
+ * Sự cố 16/09/2026: máy Linux có sẵn `python3` kèm một bản `yt_dlp` cũ (gói apt/pip
+ * cài từ lâu). Worker nạp được nên được ưu tiên hơn file exe 2026.08.19 gói kèm —
+ * và bản cũ đó vẫn trả JSON "thành công", chỉ có điều toàn URL client MWEB không
+ * PO token, UA Chrome 95 ⇒ googlevideo trả 403 cho mọi luồng. Không có lỗi nào
+ * được ném ra nên không tầng nào tự rơi về exe.
+ *
+ * Quy tắc: worker phải **không cũ hơn** bản exe. Không có exe để so thì chấp nhận
+ * nhưng cảnh báo nếu đã quá 60 ngày tuổi.
+ */
+async function versionVerdict(version: string): Promise<string | null> {
+  let exeVersion: string | null = null;
+  try {
+    exeVersion = await (await import('./ytdlp')).ytdlpVersion();
+  } catch {
+    /* không dò được exe thì chỉ xét tuổi */
+  }
+
+  if (exeVersion && compareYtdlpVersion(version, exeVersion) < 0) {
+    return `yt_dlp của Python là bản ${version}, cũ hơn file exe ${exeVersion} — dùng exe`;
+  }
+
+  const d = /^(\d{4})\.(\d{1,2})\.(\d{1,2})/.exec(version);
+  if (!exeVersion && d) {
+    const days = Math.floor((Date.now() - Date.UTC(+d[1], +d[2] - 1, +d[3])) / 86_400_000);
+    if (days > 60) {
+      console.warn(
+        `[yt-dlp] worker dùng yt_dlp ${version} (${days} ngày tuổi) — dễ bị 403. ` +
+          'Chạy: python3 -m pip install -U yt-dlp'
+      );
+    }
+  }
+  return null;
+}
+
 const workerScript = () =>
   path.resolve(process.cwd(), 'scripts', 'ytdlp_worker.py');
 
@@ -70,6 +130,13 @@ function cleanup(reason: string) {
 async function start(): Promise<boolean> {
   if (Date.now() < disabledUntil) return false;
 
+  // Lối thoát khẩn cấp: YTDLP_WORKER=0 là luôn gọi file exe
+  if (process.env.YTDLP_WORKER?.trim() === '0') {
+    workerState.skipped = 'tắt bằng YTDLP_WORKER=0';
+    disabledUntil = Number.POSITIVE_INFINITY;
+    return false;
+  }
+
   const script = workerScript();
   if (!existsSync(script)) {
     disabledUntil = Date.now() + RETRY_AFTER_FAIL;
@@ -78,6 +145,7 @@ async function start(): Promise<boolean> {
 
   const python = await findPython();
   if (!python) {
+    workerState.skipped = 'không có Python kèm gói yt_dlp';
     // Đây chỉ là tối ưu thêm cho máy nào sẵn có Python, không phải yêu cầu.
     // Không có thì chạy bằng file exe gói kèm, mọi thứ vẫn hoạt động đầy đủ.
     if (!warnedNoPython) {
@@ -122,7 +190,7 @@ async function start(): Promise<boolean> {
       resolve(false);
     }, 30_000);
 
-    rl.on('line', (line) => {
+    rl.on('line', async (line) => {
       let msg: any;
       try {
         msg = JSON.parse(line);
@@ -142,7 +210,25 @@ async function start(): Promise<boolean> {
           return;
         }
 
-        console.info(`[yt-dlp] worker thường trú đã sẵn sàng (${python})`);
+        const version = typeof msg.version === 'string' ? msg.version : '';
+        workerState.python = python;
+        workerState.version = version || null;
+
+        // Worker đời cũ (chưa báo version) cũng coi như cũ — không tin được
+        const verdict = version
+          ? await versionVerdict(version)
+          : 'worker không báo phiên bản yt_dlp — dùng exe';
+        if (verdict) {
+          console.warn(`[yt-dlp] ${verdict}`);
+          workerState.skipped = verdict;
+          child.kill();
+          disabledUntil = Date.now() + RETRY_AFTER_FAIL;
+          resolve(false);
+          return;
+        }
+
+        workerState.skipped = null;
+        console.info(`[yt-dlp] worker thường trú đã sẵn sàng (${python}, yt_dlp ${version})`);
         resolve(true);
         return;
       }

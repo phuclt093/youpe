@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getYT, ytMode } from '@/lib/innertube';
 import { playableFormats } from '@/lib/player';
 import { getFromFallback } from '@/lib/piped';
+import { workerAvailable, workerState } from '@/lib/ytdlp-worker';
 import {
   isYtdlpAvailable, ytdlpVersion, getFromYtdlp, ytdlpDiagnostics, measureStartup,
 } from '@/lib/ytdlp';
@@ -35,9 +36,45 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
       const r = await getFromYtdlp(id);
       const totalMs = Date.now() - t0;
 
+      const worker = await workerAvailable();
+
+      // Gọi thử googlevideo đúng như /api/stream sẽ gọi — 2 byte đầu là đủ biết 200 hay 403
+      const sample = r.formats.find((f) => f.kind === 'video') ?? r.formats[0];
+      let thu_luong: any = null;
+      if (sample) {
+        try {
+          const res = await fetch(sample.url, {
+            headers: { ...(sample.headers ?? {}), Range: 'bytes=0-1' },
+            cache: 'no-store',
+          });
+          void res.body?.cancel();
+          thu_luong = { itag: sample.itag, status: res.status, ok: res.ok };
+        } catch (e: any) {
+          thu_luong = { itag: sample.itag, error: e?.message ?? String(e) };
+        }
+      }
+
       ytdlp = {
+        thu_luong,
         installed: true,
         version: await ytdlpVersion(),
+        // Đường nào thật sự sinh ra URL: worker Python hay file exe gói kèm
+        duong_trich_xuat: worker
+          ? `worker Python (${workerState.python}, yt_dlp ${workerState.version})`
+          : 'file exe',
+        worker_bo_qua: worker ? null : workerState.skipped,
+        // Tên player client trong URL (tham số c=) — MWEB/WEB không kèm PO token là dấu hiệu 403
+        clients: [
+          ...new Set(
+            r.formats.map((f) => {
+              try {
+                return new URL(f.url).searchParams.get('c') ?? '?';
+              } catch {
+                return '?';
+              }
+            })
+          ),
+        ],
         khoi_dong_ms: startupMs,
         trich_xuat_ms: totalMs,
         cho_mang_ms: startupMs != null ? Math.max(0, totalMs - startupMs) : null,

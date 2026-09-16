@@ -6,11 +6,19 @@ export { setSignedIn } from './sync';
 
 export type StoredVideo = VideoItem & { savedAt: number };
 
+/*
+  Không còn `playlists` ở đây.
+
+  Danh sách phát đã chuyển sang `playlists.ts` với khoá `youpe.playlistsV2` và có
+  cấu trúc riêng (tên, thứ tự, mảng video). Cái `youpe.playlists` cũ là bản V1,
+  không chỗ nào đọc nữa — nhưng `pushAllToServer()` vẫn đẩy nó lên server dưới
+  đúng tên danh sách `playlists`, tức là **đè lên chính playlists thật** ngay lần
+  đăng nhập đầu của ai còn sót dữ liệu V1.
+*/
 const KEYS = {
   history: 'youpe.history',
   later: 'youpe.later',
   liked: 'youpe.liked',
-  playlists: 'youpe.playlists',
 } as const;
 
 export type StoreKey = keyof typeof KEYS;

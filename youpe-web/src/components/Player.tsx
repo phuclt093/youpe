@@ -1036,7 +1036,19 @@ export default function Player({
 
             <div className="mt-4 flex flex-wrap items-center justify-center gap-2 text-sm">
               <button
-                onClick={() => window.location.reload()}
+                onClick={async () => {
+                  /*
+                    Bảo server bỏ cache của video này rồi mới tải lại. Chỉ reload thôi
+                    thì /api/streams trả lại đúng bộ URL vừa bị 403 (cache 20 phút) —
+                    nút "Thử lại" bấm bao nhiêu lần cũng như không.
+                  */
+                  setError('');
+                  setBuffering(true);
+                  await fetch(`/api/streams/${videoId}?fresh=1`, { cache: 'no-store' }).catch(
+                    () => {}
+                  );
+                  window.location.reload();
+                }}
                 className="rounded-full bg-yt-chip px-4 py-2 hover:bg-yt-chip2"
               >
                 Thử lại

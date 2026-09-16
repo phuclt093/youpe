@@ -5,9 +5,16 @@
  *
  * Chạy trên máy nào thì ghi đúng chỗ của hệ điều hành đó:
  *
- *   Linux    ~/.config/youpe/data/youpe.env
- *   Windows  %APPDATA%\youpe\data\youpe.env
- *   macOS    ~/Library/Application Support/youpe/data/youpe.env
+ *   Linux    ~/.config/youpe-desktop/data/youpe.env
+ *   Windows  %APPDATA%\youpe-desktop\data\youpe.env
+ *   macOS    ~/Library/Application Support/youpe-desktop/data/youpe.env
+ *
+ * Vì sao là `youpe-desktop` chứ không phải `youpe`: Electron đặt tên thư mục
+ * userData theo `productName` trong package.json **của app**, không phải theo
+ * `build.productName` của electron-builder. package.json của youpe-desktop chỉ có
+ * `name: "youpe-desktop"` ⇒ app đọc `.../youpe-desktop/data`. Trước 16/09/2026 lệnh
+ * này ghi vào `.../youpe/data`, bản đóng gói không bao giờ thấy ⇒ lặng lẽ dùng
+ * youpe.json trên máy thay vì Turso.
  *
  * Vì sao phải chép thay vì để bản đóng gói đọc thẳng `.env.local`: xem
  * docs/CONTEXT.md mục 4.20. Tóm tắt — bản standalone của Next không mang theo
@@ -26,14 +33,17 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
+/** Phải trùng với `name` trong youpe-desktop/package.json — đó là tên Electron dùng */
+const APP_DIR = 'youpe-desktop';
+
 /** Thư mục dữ liệu của app trên hệ điều hành đang chạy */
 export function userDataDir() {
   const home = process.env.HOME || process.env.USERPROFILE || '';
   if (process.platform === 'win32')
-    return path.join(process.env.APPDATA || home, 'youpe', 'data');
+    return path.join(process.env.APPDATA || home, APP_DIR, 'data');
   if (process.platform === 'darwin')
-    return path.join(home, 'Library', 'Application Support', 'youpe', 'data');
-  return path.join(process.env.XDG_CONFIG_HOME || path.join(home, '.config'), 'youpe', 'data');
+    return path.join(home, 'Library', 'Application Support', APP_DIR, 'data');
+  return path.join(process.env.XDG_CONFIG_HOME || path.join(home, '.config'), APP_DIR, 'data');
 }
 
 export const userEnvPath = () => path.join(userDataDir(), 'youpe.env');

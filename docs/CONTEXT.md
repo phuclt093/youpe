@@ -531,9 +531,9 @@ Vỏ desktop vì vậy đọc thêm một file riêng của từng máy (`userEn
 `main.js`):
 
 ```
-Linux    ~/.config/youpe/data/youpe.env
-Windows  %APPDATA%\youpe\data\youpe.env
-macOS    ~/Library/Application Support/youpe/data/youpe.env
+Linux    ~/.config/youpe-desktop/data/youpe.env
+Windows  %APPDATA%\youpe-desktop\data\youpe.env
+macOS    ~/Library/Application Support/youpe-desktop/data/youpe.env
 ```
 
 Không gói token vào file cài là cố ý: token Turso là quyền đọc ghi toàn bộ cơ sở
@@ -711,7 +711,7 @@ GitHub. Lấy token bằng một trong hai cách:
 
 ```bash
 turso db tokens create youpe          # cấp token mới, cấp bao nhiêu lần cũng được
-cat ~/.config/youpe/data/youpe.env    # hoặc đọc lại từ máy đã cấu hình rồi
+cat ~/.config/youpe-desktop/data/youpe.env    # hoặc đọc lại từ máy đã cấu hình rồi
 ```
 
 Có hai giá trị rồi thì điền vào **hai chỗ** — thiếu chỗ thứ hai là bản đóng gói
@@ -720,7 +720,7 @@ không đồng bộ, xem mục 4.20:
 | Chỗ | Dùng cho | Windows | Linux |
 |---|---|---|---|
 | `.env.local` | `npm run dev` | `youpe-web\.env.local` | `youpe-web/.env.local` |
-| `youpe.env` | bản đã cài | `%APPDATA%\youpe\data\youpe.env` | `~/.config/youpe/data/youpe.env` |
+| `youpe.env` | bản đã cài | `%APPDATA%\youpe-desktop\data\youpe.env` | `~/.config/youpe-desktop/data/youpe.env` |
 
 Chỗ thứ hai **không phải chép tay, cũng không phải nhớ**: `npm run build` tự làm
 khi thấy `.env.local` có Turso mà máy chưa có `youpe.env`. Muốn chạy riêng thì:
@@ -746,8 +746,8 @@ TURSO_DATABASE_URL=libsql://youpe-phuclt093.aws-ap-northeast-1.turso.io
 TURSO_AUTH_TOKEN=ey...
 EOF
 
-mkdir -p ~/.config/youpe/data
-grep '^TURSO_' youpe-web/.env.local > ~/.config/youpe/data/youpe.env
+mkdir -p ~/.config/youpe-desktop/data
+grep '^TURSO_' youpe-web/.env.local > ~/.config/youpe-desktop/data/youpe.env
 ```
 
 **Windows — Command Prompt** (cái mở ra khi gõ `cmd`, dấu nhắc dạng `E:\...>`).
@@ -755,9 +755,9 @@ grep '^TURSO_' youpe-web/.env.local > ~/.config/youpe/data/youpe.env
 
 ```cmd
 cd /d E:\Phuc\Projects\youpe
-mkdir "%APPDATA%\youpe\data" 2>nul
-findstr /b "TURSO_" youpe-web\.env.local > "%APPDATA%\youpe\data\youpe.env"
-type "%APPDATA%\youpe\data\youpe.env"
+mkdir "%APPDATA%\youpe-desktop\data" 2>nul
+findstr /b "TURSO_" youpe-web\.env.local > "%APPDATA%\youpe-desktop\data\youpe.env"
+type "%APPDATA%\youpe-desktop\data\youpe.env"
 ```
 
 **Windows — PowerShell** (dấu nhắc dạng `PS E:\...>`), chạy ở thư mục gốc kho.
@@ -946,3 +946,32 @@ Lần sau YouTube siết tiếp thì một lệnh là ra đáp án, khỏi đoá
 - Chữ có chân của chủ đề cổ phong rơi về serif hệ thống trên Linux (chưa gói kèm
   font Noto Serif).
 - Bản đóng gói Linux chưa cài thử.
+
+### 16/09/2026 — Mọi luồng trên bản desktop Linux bị 403
+
+Triệu chứng: player báo "YouTube từ chối luồng này (403)", bấm Thử lại vô ích.
+
+Nguyên nhân thật: **worker Python dùng một bản `yt_dlp` rất cũ** có sẵn trong
+`python3` của máy. `ytdlp-worker.ts` thấy `python3 -c "import yt_dlp"` chạy được là
+ưu tiên worker hơn file exe 2026.08.19 gói kèm, không hề so phiên bản. Bản cũ vẫn
+trả JSON "thành công" nhưng toàn URL client `MWEB`, không PO token, UA `Chrome/95`
+⇒ googlevideo 403 hết. Bằng chứng nằm trong `stream-cache-v2.json`: tham số `c=MWEB`
+ở mọi URL — exe 2026.08.19 chỉ dùng `visionos`/`web`, UA Chrome 145–151.
+
+Ghi chú ở mục 10/08 ("ai dùng pip sẽ không gặp lỗi") chỉ đúng khi bản pip **mới**.
+
+Đã sửa:
+- `ytdlp_worker.py` báo `version` trong dòng `ready`; bỏ `player_skip` cho giống
+  đường exe.
+- `ytdlp-worker.ts` từ chối worker cũ hơn exe (hoặc không báo phiên bản);
+  `YTDLP_WORKER=0` tắt hẳn worker. `workerState` cho biết vì sao bỏ qua.
+- `sources.ts` đổi cache sang `stream-cache-v3.json`; `/api/streams/<id>?fresh=1`
+  bỏ cache. Nút "Thử lại" gọi `fresh=1` trước khi tải lại — trước đây nó nhận lại
+  đúng bộ URL chết trong 20 phút.
+- `/api/debug/<id>` thêm `duong_trich_xuat`, `worker_bo_qua`, `clients` (tham số
+  `c=`) và `thu_luong` (gọi thử googlevideo 2 byte đầu).
+
+Lỗi phụ tìm thấy cùng lúc: Electron đặt userData theo `name` của package.json app
+(`youpe-desktop`), còn `link:db` ghi vào `.../youpe/data` ⇒ **bản đóng gói chưa bao
+giờ đọc được Turso**, lặng lẽ dùng `youpe.json`. Đã sửa `link-db.mjs` ghi vào
+`youpe-desktop`, `main.js` đọc thêm chỗ cũ làm nền.
