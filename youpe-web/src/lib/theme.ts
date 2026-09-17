@@ -1,13 +1,16 @@
 /**
- * Chủ đề màu.
+ * Chủ đề màu — chỉ còn MỘT bộ: cổ phong sáng.
  *
- * Toàn bộ giao diện lấy màu từ một nhúm biến CSS trên thẻ `html` (khai báo mặc định
- * ở `globals.css`, khai báo cho Tailwind ở `tailwind.config.ts`). Đổi chủ đề chỉ là
- * gán lại mấy biến đó — không nạp thêm stylesheet, không dựng lại cây DOM, nên
- * chuyển tức thì kể cả khi video đang chạy.
+ * Trước 17/09/2026 app có sáu bộ dựng sẵn (tối, giấy cũ, mực đêm, Hoa linh,
+ * Genshin…) cùng trình tự tạo bộ màu. Nay gom về một phong cách duy nhất cho
+ * giao diện nhất quán: nền giấy tuyên sáng, chữ mực nâu, nhấn bằng son, liên kết
+ * màu ngọc. Không còn gradient, không còn quầng sáng.
  *
- * File này **không** đánh dấu 'use client': trang layout (chạy trên server) cần đọc
- * `PRESETS` để nhúng vào đoạn script chống nháy màu.
+ * Giao diện vẫn lấy màu từ biến CSS trên thẻ `html` (giá trị gốc ở `globals.css`,
+ * khai báo cho Tailwind ở `tailwind.config.ts`). File này giữ lại `applyTheme`
+ * làm lưới an toàn và để cửa sổ nổi / trò chơi đọc được bảng màu.
+ *
+ * File này **không** đánh dấu 'use client': layout (chạy trên server) có import.
  */
 
 export const COLOR_KEYS = [
@@ -20,131 +23,32 @@ export type Palette = Record<ColorKey, string>;
 export type Theme = {
   id: string;
   name: string;
-  /** Cho trình duyệt biết để vẽ thanh cuộn, ô nhập, menu hệ thống cho đúng */
   scheme: 'dark' | 'light';
-  /** Dùng chữ có chân — cổ phong bật, mặc định tắt */
   serif: boolean;
   colors: Palette;
 };
 
-/** Nhãn tiếng Việt cho từng biến màu, dùng trong trang Cài đặt */
-export const COLOR_LABELS: Record<ColorKey, string> = {
-  bg: 'Nền trang',
-  bg2: 'Nền chìm (ô tìm kiếm)',
-  elev: 'Nền thẻ',
-  hover: 'Nền khi rê chuột',
-  chip: 'Nền nút tròn',
-  chip2: 'Nút tròn khi rê chuột',
-  border: 'Đường viền',
-  text: 'Chữ chính',
-  sub: 'Chữ phụ',
-  red: 'Màu nhấn',
-  blue: 'Màu liên kết',
-  off: 'Công tắc lúc tắt',
+/*
+  Giữ đồng bộ với khối `:root` trong globals.css — hai chỗ phải cùng giá trị.
+
+  Chữ không dùng đen tuyền: mực trên giấy luôn ngả nâu, #000 trông như bản in
+  laser. Nền cũng không trắng tinh mà ngả ngà, đỡ chói khi xem lâu.
+*/
+export const THEME: Theme = {
+  id: 'co-phong',
+  name: 'Cổ phong',
+  scheme: 'light',
+  serif: true,
+  colors: {
+    bg: '#faf7f0', bg2: '#f3eee3', elev: '#efe9dc', hover: '#e6dfcf',
+    chip: '#ece5d6', chip2: '#ddd3bf', border: '#dcd2bf',
+    text: '#2a241d', sub: '#766a5a', red: '#a93a2e', blue: '#2f6b5a', off: '#bdb3a1',
+  },
 };
 
-/* ------------------------------------------------------------------ */
+/** Giữ tên cũ cho các chỗ còn gọi */
+export const PRESETS: Theme[] = [THEME];
 
-export const PRESETS: Theme[] = [
-  {
-    id: 'mac-dinh',
-    name: 'Mặc định',
-    scheme: 'dark',
-    serif: false,
-    colors: {
-      bg: '#0f0f0f', bg2: '#121212', elev: '#212121', hover: '#272727',
-      chip: '#272727', chip2: '#3f3f3f', border: '#303030',
-      text: '#f1f1f1', sub: '#aaaaaa', red: '#ff0033', blue: '#3ea6ff', off: '#5a5a5a',
-    },
-  },
-  {
-    /*
-      Giấy dó ngả vàng, mực nho, ấn son. Chữ cố ý không dùng đen tuyền — mực trên
-      giấy cũ luôn ngả nâu, để #000 thì trông như trang web in laser chứ không ra
-      sách cổ.
-    */
-    id: 'co-phong-giay',
-    name: 'Cổ phong · Giấy cũ',
-    scheme: 'light',
-    serif: true,
-    colors: {
-      bg: '#f4ecd8', bg2: '#efe4cb', elev: '#eae0c6', hover: '#ded0ab',
-      chip: '#e4d7b8', chip2: '#d2bf96', border: '#cbb894',
-      text: '#2e2318', sub: '#7b6a51', red: '#a8322c', blue: '#3f6f5e', off: '#bba98a',
-    },
-  },
-  {
-    /*
-      Bạch ngọc lụa sáng: nền giấy tuyên trắng ngà ngả ánh bạch ngọc thanh khiết,
-      chữ mực ngà đen thanh nhã, điểm ấn son đỏ thắm và ngọc bích sương mai.
-    */
-    id: 'co-phong-bach-ngoc',
-    name: 'Cổ phong · Bạch ngọc',
-    scheme: 'light',
-    serif: true,
-    colors: {
-      bg: '#f7f4ed', bg2: '#f0ebe0', elev: '#e8e2d4', hover: '#ddd5c4',
-      chip: '#e5ddd0', chip2: '#d3c8b4', border: '#cbbfab',
-      text: '#2b251f', sub: '#736756', red: '#aa382c', blue: '#2b6e59', off: '#ab9f8c',
-    },
-  },
-  {
-    /*
-      Mực đêm: nền đen ngả nâu như nghiên mực, chữ trắng ngà, nhấn bằng son và kim.
-      Màu "liên kết" ở đây là vàng kim chứ không phải xanh dương — xanh dương trên
-      nền này lạc quẻ ngay.
-    */
-    id: 'co-phong-muc',
-    name: 'Cổ phong · Mực đêm',
-    scheme: 'dark',
-    serif: true,
-    colors: {
-      bg: '#14110c', bg2: '#191510', elev: '#221d15', hover: '#2e2719',
-      chip: '#2a2318', chip2: '#3d3423', border: '#3a3225',
-      text: '#ece2ce', sub: '#a49075', red: '#c8452f', blue: '#c9a227', off: '#544938',
-    },
-  },
-  {
-    /*
-      Cổ phong pha Hoa Linh Lục Địa: vẫn là đêm phương Đông, nhưng đổi nghiên mực
-      lấy trời chàm, và thay son bằng hai màu đặc trưng của lễ hội linh hồn —
-      hồng hoa anh linh làm màu nhấn, lửa linh xanh ngọc làm màu liên kết.
-
-      Nền cố ý ngả tím chứ không đen tuyền: đen tuyền thì hồng và ngọc nổi đến mức
-      chói, còn nền chàm kéo cả ba về cùng một tông đêm.
-    */
-    id: 'co-phong-hoa-linh',
-    name: 'Cổ phong · Hoa linh',
-    scheme: 'dark',
-    serif: true,
-    colors: {
-      bg: '#0d0a18', bg2: '#120e21', elev: '#1a1430', hover: '#251d42',
-      chip: '#221a3c', chip2: '#342a5c', border: '#33285a',
-      text: '#f2eaff', sub: '#a294c8', red: '#ff5ea8', blue: '#5fe0d2', off: '#463a70',
-    },
-  },
-  {
-    /*
-      Chủ đề Genshin Impact - Ngọc Bích (Emerald Jade): Tông màu sẫm mang phong cách
-      Ngọc Phỉ Thúy Liyue / Thảo Thần Sumeru. Nền xanh đen bích thạch sâu thẫm,
-      chữ ngọc bích bạch ngọc lấp lánh, nhấn bằng hiệu ứng xanh lá ngọc bích cực sáng.
-    */
-    id: 'genshin-ngoc-bich',
-    name: 'Genshin · Ngọc bích',
-    scheme: 'dark',
-    serif: false,
-    colors: {
-      bg: '#081713', bg2: '#0d211b', elev: '#132c24', hover: '#1b3b31',
-      chip: '#17342b', chip2: '#234d40', border: '#245747',
-      text: '#e5f9f3', sub: '#7fbfae', red: '#00e6a8', blue: '#3be8be', off: '#2d574b',
-    },
-  },
-];
-
-/* ------------------------------------------------------------------ */
-
-const ACTIVE_KEY = 'youpe.theme';
-const CUSTOM_KEY = 'youpe.themesV1';
 const EVENT = 'youpe-theme';
 
 /** "#f4ecd8" -> "244 236 216". Mã hỏng thì trả về đen, đừng ném lỗi giữa lúc vẽ. */
@@ -157,43 +61,12 @@ export function hexToChannels(hex: string): string {
   return `${(n >> 16) & 255} ${(n >> 8) & 255} ${n & 255}`;
 }
 
-/** Đọc các bộ màu người dùng tự tạo */
-export function getCustomThemes(): Theme[] {
-  if (typeof window === 'undefined') return [];
-  try {
-    const raw = JSON.parse(localStorage.getItem(CUSTOM_KEY) || '[]');
-    return Array.isArray(raw) ? raw.filter(isTheme) : [];
-  } catch {
-    return [];
-  }
-}
-
-function isTheme(t: any): t is Theme {
-  return !!t && typeof t.id === 'string' && !!t.colors && COLOR_KEYS.every((k) => t.colors[k]);
-}
-
-function writeCustom(list: Theme[]) {
-  localStorage.setItem(CUSTOM_KEY, JSON.stringify(list));
-}
-
-export function getAllThemes(): Theme[] {
-  return [...PRESETS, ...getCustomThemes()];
-}
-
-export function getActiveId(): string {
-  if (typeof window === 'undefined') return PRESETS[0].id;
-  return localStorage.getItem(ACTIVE_KEY) || PRESETS[0].id;
-}
-
 export function getActiveTheme(): Theme {
-  const id = getActiveId();
-  return getAllThemes().find((t) => t.id === id) ?? PRESETS[0];
+  return THEME;
 }
-
-/* ------------------------------------------------------------------ */
 
 /** Gán bảng màu lên thẻ `html`. Mọi thứ khác trong app tự ăn theo. */
-export function applyTheme(t: Theme) {
+export function applyTheme(t: Theme = THEME) {
   const root = document.documentElement;
   for (const k of COLOR_KEYS) root.style.setProperty(`--yt-${k}`, hexToChannels(t.colors[k]));
   root.style.colorScheme = t.scheme;
@@ -202,98 +75,16 @@ export function applyTheme(t: Theme) {
   else delete root.dataset.serif;
 }
 
-export function setActiveTheme(id: string) {
-  localStorage.setItem(ACTIVE_KEY, id);
-  applyTheme(getAllThemes().find((t) => t.id === id) ?? PRESETS[0]);
-  window.dispatchEvent(new CustomEvent(EVENT));
-}
-
-/**
- * Tạo một bộ mới bằng cách chép bộ đang dùng.
- * Bắt đầu từ con số không thì phải ngồi chọn 12 màu mới xem được gì; chép rồi
- * sửa dần thì lúc nào giao diện cũng còn dùng được.
- */
-export function duplicateTheme(source: Theme, name?: string): Theme {
-  const copy: Theme = {
-    id: `tuy-chinh-${Date.now().toString(36)}`,
-    name: name || `${source.name} (bản sao)`,
-    scheme: source.scheme,
-    serif: source.serif,
-    colors: { ...source.colors },
-  };
-  writeCustom([...getCustomThemes(), copy]);
-  return copy;
-}
-
-/** Sửa từng phần — `colors` chỉ cần đưa vài màu, không phải cả bảng */
-export type ThemePatch = Partial<Omit<Theme, 'id' | 'colors'>> & { colors?: Partial<Palette> };
-
-export function updateTheme(id: string, patch: ThemePatch) {
-  const list = getCustomThemes();
-  const i = list.findIndex((t) => t.id === id);
-  if (i < 0) return; // preset thì không sửa được, phải nhân bản trước
-
-  list[i] = { ...list[i], ...patch, colors: { ...list[i].colors, ...(patch.colors ?? {}) } };
-  writeCustom(list);
-
-  if (getActiveId() === id) applyTheme(list[i]);
-  window.dispatchEvent(new CustomEvent(EVENT));
-}
-
-export function deleteTheme(id: string) {
-  writeCustom(getCustomThemes().filter((t) => t.id !== id));
-  // đang dùng bộ vừa xoá thì rơi về mặc định, không để giao diện trống màu
-  if (getActiveId() === id) setActiveTheme(PRESETS[0].id);
-  else window.dispatchEvent(new CustomEvent(EVENT));
-}
-
-export function isPreset(id: string): boolean {
-  return PRESETS.some((t) => t.id === id);
-}
-
 export function onThemeChange(fn: () => void): () => void {
   window.addEventListener(EVENT, fn);
   return () => window.removeEventListener(EVENT, fn);
 }
 
-/* ------------------------------------------------------------------ */
-
 /**
- * Đoạn script chạy **trước khi trang vẽ lần đầu**, nhúng thẳng vào `<head>`.
- *
- * Không có nó thì trang luôn hiện ra bằng màu mặc định rồi mới nhảy sang chủ đề đã
- * chọn — với chủ đề sáng đó là một cú loé trắng vào mặt. React thì phải chờ tải
- * xong JavaScript mới chạy được, quá muộn.
- *
- * Các bộ dựng sẵn được nhúng luôn vào script để không phải chờ thêm gì.
+ * Chạy trước lần vẽ đầu. Màu đã nằm sẵn trong globals.css nên không còn nháy màu;
+ * script chỉ dọn khoá của hệ chủ đề cũ để localStorage khỏi giữ rác.
  */
 export function themeBootScript(): string {
-  const presets = JSON.stringify(
-    Object.fromEntries(
-      PRESETS.map((t) => [
-        t.id,
-        {
-          s: t.scheme,
-          f: t.serif ? 1 : 0,
-          c: Object.fromEntries(COLOR_KEYS.map((k) => [k, hexToChannels(t.colors[k])])),
-        },
-      ])
-    )
-  );
-
-  return `(function(){try{
-var P=${presets},K=${JSON.stringify(COLOR_KEYS)};
-var id=localStorage.getItem('${ACTIVE_KEY}')||'${PRESETS[0].id}';
-var t=P[id];
-if(!t){var L=JSON.parse(localStorage.getItem('${CUSTOM_KEY}')||'[]');
- for(var i=0;i<L.length;i++){if(L[i]&&L[i].id===id){
-  var c={};for(var j=0;j<K.length;j++){var h=String(L[i].colors[K[j]]||'').replace('#','');
-   if(h.length===3)h=h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
-   var n=parseInt(h,16)||0;c[K[j]]=((n>>16)&255)+' '+((n>>8)&255)+' '+(n&255);}
-  t={s:L[i].scheme,f:L[i].serif?1:0,c:c};break;}}}
-if(!t)return;
-var r=document.documentElement;
-for(var k=0;k<K.length;k++)r.style.setProperty('--yt-'+K[k],t.c[K[k]]);
-r.style.colorScheme=t.s;r.dataset.theme=id;if(t.f)r.dataset.serif='1';
-}catch(e){}})();`;
+  return `(function(){try{localStorage.removeItem('youpe.theme');localStorage.removeItem('youpe.themesV1');}catch(e){}
+var r=document.documentElement;r.dataset.theme='${THEME.id}';r.dataset.serif='1';})();`;
 }

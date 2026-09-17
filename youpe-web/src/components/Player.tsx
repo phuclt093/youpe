@@ -870,6 +870,8 @@ export default function Player({
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement)?.isContentEditable)
         return;
+      // Alt+←/→ là lùi/tiến trang (NavButtons), đừng tua video cùng lúc
+      if (e.altKey) return;
       const v = videoRef.current;
       if (!v) return;
 

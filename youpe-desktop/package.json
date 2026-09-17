@@ -68,7 +68,7 @@
         "AppImage",
         "deb"
       ],
-      "icon": "build/icon.png",
+      "icon": "build/icons",
       "category": "AudioVideo",
       "synopsis": "Xem video khong quang cao",
       "description": "youpe - xem video khong quang cao, tu chay may chu tren may cua ban.",
@@ -79,7 +79,7 @@
           "Comment": "Xem video khong quang cao",
           "Categories": "AudioVideo;Video;Player;Network;",
           "Keywords": "video;youtube;player;",
-          "StartupWMClass": "youpe"
+          "StartupWMClass": "youpe-desktop"
         }
       }
     },

@@ -1,10 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- youpe · ấn triện son: khối son, khung mảnh như con dấu, mũi tên phát màu giấy -->
   <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#ff2d55"/>
-      <stop offset="100%" stop-color="#3ea6ff"/>
+    <linearGradient id="son" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#b3443a"/>
+      <stop offset="1" stop-color="#9c3328"/>
     </linearGradient>
   </defs>
-  <rect width="1024" height="1024" rx="228" fill="url(#g)"/>
-  <path d="M392 300 L676 512 L392 724" fill="none" stroke="#0f0f0f" stroke-width="104" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="72" y="72" width="880" height="880" rx="168" fill="url(#son)"/>
+  <rect x="140" y="140" width="744" height="744" rx="112" fill="none" stroke="#faf7f0" stroke-opacity=".55" stroke-width="16"/>
+  <path d="M432 330 L640 512 L432 694" fill="none" stroke="#faf7f0" stroke-width="96" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>

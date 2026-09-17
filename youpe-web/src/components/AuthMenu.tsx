@@ -5,20 +5,16 @@ import Link from 'next/link';
 import { useAuth } from './AuthProvider';
 import { HistoryIcon, ClockIcon, LikeIcon, PlaylistIcon, CloseIcon } from './Icons';
 
-const GRADIENTS = [
-  'from-[#3ea6ff] to-[#7b61ff]',
-  'from-[#ff7a45] to-[#ff0033]',
-  'from-[#22c55e] to-[#0ea5e9]',
-  'from-[#a855f7] to-[#ec4899]',
-];
+// Màu phẳng theo bảng cổ phong: son, ngọc, chàm, hổ phách — không gradient
+const TONES = ['bg-[#a93a2e]', 'bg-[#2f6b5a]', 'bg-[#3d4f7a]', 'bg-[#9a6b2f]'];
 
 function Avatar({ name, size = 32 }: { name: string; size?: number }) {
   const initial = (name.trim()[0] ?? '?').toUpperCase();
-  const g = GRADIENTS[name.length % GRADIENTS.length];
+  const g = TONES[name.length % TONES.length];
   return (
     <div
       style={{ width: size, height: size, fontSize: size * 0.45 }}
-      className={`grid shrink-0 place-items-center rounded-full bg-gradient-to-br ${g} font-medium text-white`}
+      className={`grid shrink-0 place-items-center rounded-full ${g} font-medium text-[#faf7f0]`}
     >
       {initial}
     </div>

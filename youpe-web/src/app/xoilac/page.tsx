@@ -85,7 +85,7 @@ export default function XoilacPage() {
           onClick={() => setFilter('live')}
           className={`rounded-full px-4 py-1.5 text-sm font-medium transition flex items-center gap-1.5 ${
             filter === 'live'
-              ? 'bg-red-600 text-white'
+              ? 'bg-yt-red text-yt-bg'
               : 'bg-yt-chip text-yt-text hover:bg-yt-chip2'
           }`}
         >
@@ -211,7 +211,7 @@ export default function XoilacPage() {
               <div className="mt-5 pt-3 border-t border-yt-border/50">
                 <Link
                   href={`/watch?v=${m.id}&source=xoilac`}
-                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700 transition"
+                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-yt-red px-4 py-2.5 text-sm font-semibold text-yt-bg hover:opacity-90 transition"
                 >
                   <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M8 5v14l11-7z" />

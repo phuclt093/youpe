@@ -414,7 +414,7 @@ function createWindow() {
     height: 900,
     minWidth: 900,
     minHeight: 600,
-    backgroundColor: '#0f0f0f',
+    backgroundColor: '#faf7f0', // trùng nền cổ phong, đỡ nháy khi mở
     autoHideMenuBar: true,
     show: false,
     /*

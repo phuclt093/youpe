@@ -10,31 +10,27 @@
   Đổi chủ đề = gán lại mấy biến này trên thẻ `html`. Xem `src/lib/theme.ts`.
 */
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 
-  --yt-bg: 15 15 15;
-  --yt-bg2: 18 18 18;
-  --yt-elev: 33 33 33;
-  --yt-hover: 39 39 39;
-  --yt-chip: 39 39 39;
-  --yt-chip2: 63 63 63;
-  --yt-border: 48 48 48;
-  --yt-text: 241 241 241;
-  --yt-sub: 170 170 170;
-  --yt-red: 255 0 51;
-  --yt-blue: 62 166 255;
-  --yt-off: 90 90 90;
+  /* Cổ phong sáng — giữ đồng bộ với THEME trong src/lib/theme.ts */
+  --yt-bg: 250 247 240;
+  --yt-bg2: 243 238 227;
+  --yt-elev: 239 233 220;
+  --yt-hover: 230 223 207;
+  --yt-chip: 236 229 214;
+  --yt-chip2: 221 211 191;
+  --yt-border: 220 210 191;
+  --yt-text: 42 36 29;
+  --yt-sub: 118 106 90;
+  --yt-red: 169 58 46;
+  --yt-blue: 47 107 90;
+  --yt-off: 189 179 161;
 }
 
 html, body {
   background: rgb(var(--yt-bg));
   color: rgb(var(--yt-text));
-  font-family: Roboto, Arial, system-ui, sans-serif;
-}
-
-/* Chủ đề cổ phong đổi sang chữ có chân — cùng bảng màu mà khác hẳn cảm giác */
-html[data-serif='1'],
-html[data-serif='1'] body {
+  /* Chữ có chân cho chất cổ phong */
   font-family: 'Noto Serif', Charter, Georgia, 'Times New Roman', serif;
 }
 
@@ -93,15 +89,15 @@ html[data-serif='1'] body {
   hơn, vừa không còn là cử chỉ đặc trưng của YouTube.
 */
 .card-thumb {
-  transition: transform .22s cubic-bezier(.22,.61,.36,1), box-shadow .22s ease;
+  transition: transform .3s cubic-bezier(.22,.61,.36,1), box-shadow .3s ease;
   will-change: transform;
 }
 .group:hover .card-thumb {
-  transform: translateY(-4px);
-  box-shadow: 0 14px 28px -12px rgb(0 0 0 / .45), 0 0 0 1px rgb(var(--yt-border));
+  transform: translateY(-2px);
+  box-shadow: 0 12px 24px -14px rgb(60 40 20 / .28), 0 0 0 1px rgb(var(--yt-border));
 }
-.group:hover .card-thumb img { transform: scale(1.06); }
-.card-thumb img { transition: transform .5s cubic-bezier(.22,.61,.36,1); }
+.group:hover .card-thumb img { transform: scale(1.03); }
+.card-thumb img { transition: transform .6s cubic-bezier(.22,.61,.36,1); }
 
 /**
  * Nhãn thời lượng và nhãn trực tiếp.
@@ -122,121 +118,104 @@ html[data-serif='1'] body {
 .group:hover .card-title { color: rgb(var(--yt-text)); }
 .card-title { transition: color .15s ease; }
 
-/* Nút bấm có phản hồi */
-button, a[role='button'] { transition: background-color .15s ease, color .15s ease, transform .12s ease; }
-button:active:not(:disabled) { transform: scale(.94); }
+/* Nút bấm có phản hồi — nhún nhẹ thôi, nhún mạnh trông như giật */
+button, a[role='button'] {
+  transition: background-color .18s ease, color .18s ease, border-color .18s ease,
+    box-shadow .18s ease, transform .12s ease;
+}
+button:active:not(:disabled) { transform: scale(.97); }
 
 /* Thanh tua: dày lên khi rê chuột, giống YouTube */
 .seek-bar { transition: height .12s ease, transform .12s ease; }
 .seek-wrap:hover .seek-bar { height: 5px; }
 
-/* Focus rõ ràng cho bàn phím */
-:focus-visible { outline: 2px solid rgb(var(--yt-blue)); outline-offset: 2px; border-radius: 4px; }
+/*
+  Focus cho bàn phím: vòng son mờ, bám theo bo góc sẵn có của phần tử.
+
+  Bản cũ ép `border-radius: 4px` — nút tròn, chip bo góc bị biến thành ô vuông
+  đúng lúc focus. Rule này lại đứng sau `@tailwind utilities` nên đè luôn
+  `outline-none` của ô nhập, vẽ thêm một khung vuông lọt trong ô tìm kiếm bo tròn.
+*/
+:focus-visible {
+  outline: 2px solid rgb(var(--yt-red) / .45);
+  outline-offset: 2px;
+}
+
+/* Ô nhập: không vẽ outline — khung bao ngoài / viền của chính ô lo phần báo focus */
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible { outline: none; }
+
+/* Ô nhập có viền riêng: viền sẫm lại + quầng son rất nhạt */
+input.border,
+textarea.border,
+select.border { transition: border-color .18s ease, box-shadow .18s ease; }
+input.border:focus,
+textarea.border:focus,
+select.border:focus {
+  border-color: rgb(var(--yt-red) / .45);
+  box-shadow: 0 0 0 3px rgb(var(--yt-red) / .10);
+}
 
 /* Cuộn mượt khi dùng phím tắt / mũi tên chip */
 html { scroll-behavior: smooth; }
 
-/* Ô tìm kiếm: viền sáng nhẹ khi focus, giống YouTube */
-.search-focus:focus-within {
-  border-color: rgb(var(--yt-blue));
-  box-shadow: inset 0 0 0 1px rgb(var(--yt-blue) / .35);
+/* Ô tìm kiếm: cả khung (gồm nút kính lúp) cùng đổi, nền sáng lên, quầng son nhạt */
+.search-focus {
+  transition: border-color .18s ease, box-shadow .18s ease, background-color .18s ease;
 }
+.search-focus:hover { border-color: rgb(var(--yt-sub) / .45); }
+.search-focus:focus-within {
+  background-color: rgb(var(--yt-bg));
+  border-color: rgb(var(--yt-red) / .55);
+  box-shadow: 0 0 0 4px rgb(var(--yt-red) / .12);
+}
+.search-focus:focus-within .search-btn { border-color: rgb(var(--yt-red) / .25); }
+.search-btn:focus-visible { outline-offset: -3px; }
 
 /* Ảnh chưa tải xong thì nền tối thay vì nháy trắng */
 img { background-color: rgb(var(--yt-elev)); }
 
-/* Chip đang chọn: nổi hơn chút */
-.chip-active { box-shadow: 0 0 0 1px rgb(var(--yt-text) / .18); }
+/* Chip đang chọn */
+.chip-active { box-shadow: inset 0 0 0 1px rgb(var(--yt-text) / .12); }
 
-/* ---------- điểm nhấn chuyển sắc ----------
+/* ---------- điểm nhấn ----------
 
-  Mọi gradient dựng từ hai màu nhấn của chủ đề đang bật (`--yt-red` và
-  `--yt-blue`) chứ không viết mã màu cứng. Nhờ vậy nó tự hợp với cả sáu bộ màu:
-  đỏ→xanh dương ở bộ mặc định, son→ngọc ở Giấy cũ, hồng→ngọc ở Hoa linh.
-
-  Viết cứng một cặp màu đẹp trên nền tối thì sang bộ Giấy cũ sẽ chói như đèn nháy.
+  Phong cách cổ phong: màu phẳng, không gradient, không quầng sáng. Tên lớp
+  (`grad-*`) giữ nguyên để khỏi sửa từng component, nhưng giờ chỉ là màu son đặc.
 */
-.grad-accent {
-  background-image: linear-gradient(135deg, rgb(var(--yt-red)), rgb(var(--yt-blue)));
-}
+.grad-accent { background-color: rgb(var(--yt-red)); }
 
-/* Chữ đổ màu — dùng cho chữ "youpe" ở logo */
-.grad-text {
-  background-image: linear-gradient(100deg, rgb(var(--yt-red)), rgb(var(--yt-blue)));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
+/* Chữ "youpe" ở logo: mực đậm */
+.grad-text { color: rgb(var(--yt-text)); }
 
-/**
- * Quầng sáng mờ ở đỉnh trang.
- *
- * Đặt ở `body::before` với `position: fixed` để nó đứng yên khi cuộn — cuộn theo
- * thì mắt bắt được chuyển động và thành khó chịu. `pointer-events: none` để
- * không chắn mất thao tác chuột.
- */
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0 0 auto 0;
-  height: 420px;
-  pointer-events: none;
-  /*
-    Âm chứ không phải 0. `position: fixed` biến nó thành phần tử được định vị;
-    với z-index 0 nó nằm **trên** mọi nội dung không định vị, tức là phủ mờ lên
-    chính chữ của trang. Âm thì nó xuống dưới nội dung mà vẫn trên nền của body.
-  */
-  z-index: -1;
-  background:
-    radial-gradient(60% 100% at 18% 0%, rgb(var(--yt-red) / .10), transparent 70%),
-    radial-gradient(55% 100% at 82% 0%, rgb(var(--yt-blue) / .10), transparent 70%);
-}
-
-/* Thanh trên: kính mờ thay vì nền đặc, cho thấy thoáng khi cuộn */
+/* Thanh trên: nền giấy hơi trong, có đường kẻ mảnh bên dưới */
 .glass {
-  background: rgb(var(--yt-bg) / .72);
-  backdrop-filter: blur(14px) saturate(1.3);
-  -webkit-backdrop-filter: blur(14px) saturate(1.3);
-  border-bottom: 1px solid rgb(var(--yt-border) / .7);
+  background: rgb(var(--yt-bg) / .9);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgb(var(--yt-border));
 }
 
-/* Mục đang chọn ở sidebar: nền chuyển sắc rất nhạt kèm vạch dọc đậm màu */
+/* Mục đang chọn ở sidebar: nền giấy sẫm hơn kèm vạch son */
 .nav-active {
   position: relative;
-  background-image: linear-gradient(90deg, rgb(var(--yt-red) / .16), rgb(var(--yt-blue) / .10) 60%, transparent);
+  background-color: rgb(var(--yt-hover));
 }
 .nav-active::before {
   content: '';
   position: absolute;
   left: 0;
-  top: 18%;
-  bottom: 18%;
+  top: 22%;
+  bottom: 22%;
   width: 3px;
-  border-radius: 0 3px 3px 0;
-  background-image: linear-gradient(180deg, rgb(var(--yt-red)), rgb(var(--yt-blue)));
+  border-radius: 0 2px 2px 0;
+  background-color: rgb(var(--yt-red));
 }
 
-/* Viền chuyển sắc mảnh, hiện khi rê chuột lên thẻ */
-.grad-ring {
-  position: relative;
-}
-.grad-ring::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  padding: 1px;
-  background-image: linear-gradient(135deg, rgb(var(--yt-red) / .55), rgb(var(--yt-blue) / .55));
-  /* Kỹ thuật "viền gradient": tô kín rồi khoét ruột bằng mask, giữ được bo góc */
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  mask-composite: exclude;
-  opacity: 0;
-  transition: opacity .18s ease;
-  pointer-events: none;
-}
-.grad-ring:hover::after { opacity: 1; }
+/* Viền mảnh màu son, hiện khi rê chuột lên thẻ */
+.grad-ring { transition: border-color .18s ease; }
+.grad-ring:hover { border-color: rgb(var(--yt-red) / .45); }
 
 /* Tắt hiệu ứng theo tuỳ chọn trong trang Cài đặt */
 .no-anim *,

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Logo from './Logo';
 import AuthMenu from './AuthMenu';
+import NavButtons from './NavButtons';
 import { MenuIcon, SearchIcon, MicIcon, CloseIcon, HistoryIcon } from './Icons';
 
 export default function Header({ onToggleMenu }: { onToggleMenu: () => void }) {
@@ -71,7 +72,7 @@ export default function Header({ onToggleMenu }: { onToggleMenu: () => void }) {
   return (
     <header className="glass fixed inset-x-0 top-0 z-50 flex h-14 items-center justify-between gap-4 px-4">
       {/* trái */}
-      <div className={`flex items-center gap-4 ${mobileSearch ? 'hidden sm:flex' : 'flex'}`}>
+      <div className={`flex items-center gap-2 sm:gap-3 ${mobileSearch ? 'hidden sm:flex' : 'flex'}`}>
         <button
           onClick={onToggleMenu}
           className="rounded-full p-2 hover:bg-yt-hover"
@@ -79,6 +80,7 @@ export default function Header({ onToggleMenu }: { onToggleMenu: () => void }) {
         >
           <MenuIcon />
         </button>
+        <NavButtons />
         <Logo />
       </div>
 
@@ -93,7 +95,13 @@ export default function Header({ onToggleMenu }: { onToggleMenu: () => void }) {
           </button>
         )}
         <div className="relative flex w-full">
-          <div className="search-focus flex w-full items-center rounded-l-full border border-yt-border bg-yt-bg2 px-4">
+          {/*
+            Ô nhập và nút kính lúp nằm chung một khung bo tròn. Trước đây mỗi phần
+            có viền riêng: lúc focus chỉ nửa trái đổi màu, cộng thêm khung vuông
+            của :focus-visible bên trong — nhìn như ô bị vỡ.
+          */}
+          <div className="search-focus flex w-full overflow-hidden rounded-full border border-yt-border bg-yt-bg2">
+          <div className="flex min-w-0 flex-1 items-center pl-5 pr-2">
             <input
               ref={inputRef}
               value={q}
@@ -104,10 +112,10 @@ export default function Header({ onToggleMenu }: { onToggleMenu: () => void }) {
               onFocus={() => setOpenSug(true)}
               onKeyDown={(e) => e.key === 'Enter' && go(q)}
               placeholder="Tìm kiếm  ( / )"
-              className="h-10 w-full bg-transparent text-base outline-none placeholder:text-yt-sub"
+              className="h-10 w-full bg-transparent text-base outline-none placeholder:text-yt-sub/80"
             />
             {q && (
-              <button onClick={() => setQ('')} className="p-1 text-yt-sub hover:text-yt-text">
+              <button onClick={() => setQ('')} aria-label="Xoá" className="rounded-full p-1 text-yt-sub hover:bg-yt-hover hover:text-yt-text">
                 <CloseIcon className="h-5 w-5" />
               </button>
             )}
@@ -115,13 +123,14 @@ export default function Header({ onToggleMenu }: { onToggleMenu: () => void }) {
           <button
             onClick={() => go(q)}
             aria-label="Tìm kiếm"
-            className="flex w-16 items-center justify-center rounded-r-full border border-l-0 border-yt-border bg-yt-elev hover:bg-yt-hover"
+            className="search-btn flex w-16 shrink-0 items-center justify-center border-l border-yt-border bg-yt-elev text-yt-sub hover:bg-yt-hover hover:text-yt-text"
           >
             <SearchIcon className="h-5 w-5" />
           </button>
+          </div>
 
           {openSug && sugs.length > 0 && (
-            <ul className="anim-pop absolute left-0 right-16 top-11 origin-top overflow-hidden rounded-xl bg-yt-elev py-2 shadow-2xl">
+            <ul className="anim-pop absolute left-0 right-16 top-12 z-50 origin-top overflow-hidden rounded-xl border border-yt-border bg-yt-bg py-2 shadow-[0_12px_32px_-12px_rgb(60_40_20/.28)]">
               {sugs.map((s) => (
                 <li key={s}>
                   <button

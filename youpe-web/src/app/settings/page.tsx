@@ -7,7 +7,6 @@ import { clearSubs, getSubs } from '@/lib/subs';
 import { clearProgress, getAllProgress } from '@/lib/progress';
 import { getPlaylists } from '@/lib/playlists';
 import { SearchIcon, TrashIcon, CloseIcon } from '@/components/Icons';
-import ThemePicker from '@/components/ThemePicker';
 import SyncServer from '@/components/SyncServer';
 
 const HEIGHTS = [360, 480, 720, 1080, 1440, 2160];
@@ -103,6 +102,7 @@ const GROUPS: Group[] = [
 const SHORTCUTS: [string, string][] = [
   ['/', 'Vào ô tìm kiếm'],
   ['?', 'Mở bảng phím tắt'],
+  ['Alt + ← / →', 'Quay lại hoặc tiến tới trang'],
   ['Space hoặc K', 'Phát hoặc dừng'],
   ['J / L', 'Tua 10 giây'],
   ['← / →', 'Tua 5 giây'],
@@ -181,8 +181,6 @@ export default function SettingsPage() {
     }).filter((g) => g.items.length > 0);
   }, [nq]);
 
-  const showTheme =
-    !nq || norm('Chủ đề màu sắc theme giao diện cổ phong giấy cũ bạch ngọc mực đêm hoa linh genshin ngọc bích tối sáng bảng màu tuỳ chỉnh').includes(nq);
   const showSync =
     !nq || norm('Máy chủ đồng bộ server tài khoản thư viện nhiều máy api từ xa').includes(nq);
   const showData = !nq || norm('Dữ liệu lịch sử xem sau đã thích danh sách phát kênh đăng ký tiến độ dung lượng').includes(nq);
@@ -203,7 +201,7 @@ export default function SettingsPage() {
   ).length;
 
   const nothingFound =
-    groups.length === 0 && !showTheme && !showSync && !showData && shortcuts.length === 0;
+    groups.length === 0 && !showSync && !showData && shortcuts.length === 0;
 
   return (
     <div className="mx-auto max-w-3xl px-4 pb-24 pt-6 sm:px-6">
@@ -256,12 +254,6 @@ export default function SettingsPage() {
         <p className="rounded-xl border border-yt-border bg-yt-elev px-4 py-8 text-center text-sm text-yt-sub">
           Không có cài đặt nào khớp với “{q}”.
         </p>
-      )}
-
-      {showTheme && (
-        <Section title="Chủ đề" icon={PaletteIcon}>
-          <ThemePicker />
-        </Section>
       )}
 
       {groups.map((g) => (
@@ -566,9 +558,6 @@ function DiskIcon(p: { className?: string }) {
 }
 function CloudIcon(p: { className?: string }) {
   return <Svg {...p} d="M6.5 19A4.5 4.5 0 015.6 10.1 6 6 0 0117.4 9a4 4 0 01.6 7.95V17H6.5v2zm0-1h11a3 3 0 000-6h-.9l-.1-.9A5 5 0 006.7 10.6l-.1.8-.8.1a3.5 3.5 0 00.7 6.5z" />;
-}
-function PaletteIcon(p: { className?: string }) {
-  return <Svg {...p} d="M12 3a9 9 0 000 18c1.1 0 2-.9 2-2 0-.5-.2-1-.5-1.3-.3-.4-.5-.8-.5-1.2 0-.8.7-1.5 1.5-1.5H16a5 5 0 005-5c0-3.9-4-7-9-7zm0 1c4.4 0 8 2.7 8 6a4 4 0 01-4 4h-1.5A2.5 2.5 0 0012 16.5c0 .7.3 1.2.7 1.7.2.2.3.5.3.8 0 .5-.4 1-1 1a8 8 0 010-16zM6.5 11a1.5 1.5 0 100 3 1.5 1.5 0 000-3zm2-4a1.5 1.5 0 100 3 1.5 1.5 0 000-3zm5-1a1.5 1.5 0 100 3 1.5 1.5 0 000-3zm4 3a1.5 1.5 0 100 3 1.5 1.5 0 000-3z" />;
 }
 function KeyIcon(p: { className?: string }) {
   return <Svg {...p} d="M3 6h18a1 1 0 011 1v10a1 1 0 01-1 1H3a1 1 0 01-1-1V7a1 1 0 011-1zm0 1v10h18V7H3zm2 2h2v2H5V9zm3 0h2v2H8V9zm3 0h2v2h-2V9zm3 0h2v2h-2V9zm3 0h2v2h-2V9zM5 12h2v2H5v-2zm3 0h2v2H8v-2zm3 0h2v2h-2v-2zm3 0h2v2h-2v-2zm3 0h2v2h-2v-2zM7 15h10v2H7v-2z" />;

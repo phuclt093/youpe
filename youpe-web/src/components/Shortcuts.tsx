@@ -6,6 +6,7 @@ import { CloseIcon } from './Icons';
 const ROWS: [string, string][] = [
   ['/', 'Vào ô tìm kiếm'],
   ['?', 'Mở bảng này'],
+  ['Alt + ← / →', 'Quay lại hoặc tiến tới trang'],
   ['Space / K', 'Phát hoặc dừng'],
   ['J / L', 'Tua lùi hoặc tới 10 giây'],
   ['← / →', 'Tua 5 giây'],

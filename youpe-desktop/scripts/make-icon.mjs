@@ -7,8 +7,14 @@
  *   build/icon.png    1024×1024 — electron-builder dùng cho Linux, và tự suy ra
  *                     .icns cho macOS
  *   build/icon.ico    nhiều kích thước — cho Windows
+ *   build/icons/NxN.png  16→1024 — electron-builder cài đủ cỡ vào hicolor trên
+ *                     Linux, taskbar lấy đúng ảnh nét thay vì thu nhỏ ảnh 1024
  *   assets/icon.png   512×512 — gán cho cửa sổ lúc chạy, để taskbar có icon ngay
  *                     cả khi chạy dev (chưa qua electron-builder)
+ *   ../youpe-web/assets/icon.png, youpe.ico — lối tắt của bản web trên Windows
+ *
+ * Cỡ ≤32px dùng `build/icon-small.svg` (bỏ khung, nét dày) — thu nhỏ bản lớn
+ * xuống 16px thì khung con dấu nhoè thành một vệt mờ.
  *
  * Vì sao có cả hai chỗ: `build/` chỉ dành cho electron-builder và **không** nằm
  * trong danh sách `files` của bản đóng gói, nên lúc chạy không đọc được. `assets/`
@@ -35,7 +41,9 @@ try {
 }
 
 const svg = readFileSync(path.join(root, 'build', 'icon.svg'));
-const png = (size) => sharp(svg, { density: 384 }).resize(size, size).png().toBuffer();
+const svgSmall = readFileSync(path.join(root, 'build', 'icon-small.svg'));
+const png = (size) =>
+  sharp(size <= 32 ? svgSmall : svg, { density: 384 }).resize(size, size).png().toBuffer();
 
 mkdirSync(path.join(root, 'build'), { recursive: true });
 mkdirSync(path.join(root, 'assets'), { recursive: true });
@@ -45,6 +53,12 @@ console.log('✓ build/icon.png (1024×1024)');
 
 writeFileSync(path.join(root, 'assets', 'icon.png'), await png(512));
 console.log('✓ assets/icon.png (512×512)');
+
+mkdirSync(path.join(root, 'build', 'icons'), { recursive: true });
+for (const s of [16, 24, 32, 48, 64, 128, 256, 512, 1024]) {
+  writeFileSync(path.join(root, 'build', 'icons', `${s}x${s}.png`), await png(s));
+}
+console.log('✓ build/icons/ (16→1024)');
 
 /**
  * Gói nhiều PNG thành một file .ico.
@@ -84,5 +98,10 @@ async function makeIco(sizes) {
 
 writeFileSync(path.join(root, 'build', 'icon.ico'), await makeIco([16, 32, 48, 64, 128, 256]));
 console.log('✓ build/icon.ico (16→256)');
+
+mkdirSync(path.join(web, 'assets'), { recursive: true });
+writeFileSync(path.join(web, 'assets', 'icon.png'), await png(256));
+writeFileSync(path.join(web, 'assets', 'youpe.ico'), await makeIco([16, 32, 48, 256]));
+console.log('✓ youpe-web/assets/icon.png, youpe.ico');
 
 console.log('\nXong. Đóng gói lại để icon có hiệu lực: npm run build (ở thư mục gốc)');

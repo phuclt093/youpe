@@ -55,7 +55,7 @@ export default function Chips({
   };
 
   return (
-    <div className="sticky top-14 z-20 -mx-4 bg-yt-bg px-4 py-3 sm:-mx-6 sm:px-6">
+    <div className="sticky top-14 z-20 -mx-4 bg-yt-bg px-4 py-2 sm:-mx-6 sm:px-6">
       <div className="relative">
         {canLeft && (
           <>
@@ -72,7 +72,7 @@ export default function Chips({
           </>
         )}
 
-        <div ref={railRef} className="no-scrollbar flex gap-3 overflow-x-auto scroll-smooth">
+        <div ref={railRef} className="no-scrollbar flex gap-3 overflow-x-auto scroll-smooth px-1 py-1">
           {items.map((c) => (
             <button
               key={c.key}
@@ -80,7 +80,7 @@ export default function Chips({
               onClick={() => onPick(c.key)}
               className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium ${
                 active === c.key
-                  ? 'grad-accent text-yt-bg shadow-sm'
+                  ? 'grad-accent text-yt-bg'
                   : 'bg-yt-chip text-yt-text hover:bg-yt-chip2'
               }`}
             >

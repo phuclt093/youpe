@@ -70,3 +70,6 @@ export const PlaylistIcon = (p: P) => (
 export const TrashIcon = (p: P) => (
   <S {...p}><path d="M11 17H9V8h2v9zm4-9h-2v9h2V8zm4-4v1h-1v16H6V5H5V4h4V3h6v1h4zm-2 1H7v15h10V5z" /></S>
 );
+export const ForwardIcon = (p: P) => (
+  <S {...p}><path d="M4 11h12.17l-5.59-5.59L12 4l8 8-8 8-1.41-1.41L16.17 13H4v-2z" /></S>
+);
