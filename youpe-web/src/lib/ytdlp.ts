@@ -375,6 +375,7 @@ export async function getFromYtdlp(id: string): Promise<PipedResult> {
    * Lấy được cái đó là đủ, không cần danh sách format rời.
    */
   let hls: string | undefined;
+  let hlsHeaders: Record<string, string> | undefined;
   if (j.is_live || j.live_status === 'is_live') {
     const variants = (j.formats ?? []).filter(
       (f: any) => /m3u8/i.test(f.protocol ?? '') || /\.m3u8/i.test(f.url ?? '')
@@ -382,11 +383,15 @@ export async function getFromYtdlp(id: string): Promise<PipedResult> {
 
     // Ưu tiên manifest_url (master playlist, có đủ mọi chất lượng) hơn url của một
     // biến thể đơn lẻ — chọn nhầm biến thể thì mất khả năng đổi chất lượng.
-    hls =
-      variants.find((f: any) => f.manifest_url)?.manifest_url ??
-      j.manifest_url ??
-      variants.find((f: any) => /\.m3u8/i.test(f.url ?? ''))?.url ??
-      undefined;
+    const withManifest = variants.find((f: any) => f.manifest_url);
+    const single = variants.find((f: any) => /\.m3u8/i.test(f.url ?? ''));
+    hls = withManifest?.manifest_url ?? j.manifest_url ?? single?.url ?? undefined;
+
+    // Mang theo header của ĐÚNG biến thể vừa chọn. Thiếu cái này thì proxy gọi
+    // manifest live bằng UA Chrome mặc định — URL do client khác sinh ra ⇒ 403,
+    // Shaka báo lỗi ngay và video trực tiếp không bao giờ tải được.
+    const src = withManifest ?? single ?? variants[0];
+    hlsHeaders = pickHeaders(src?.http_headers) ?? pickHeaders(j.http_headers);
   }
 
   for (const f of j.formats ?? []) {
@@ -430,6 +435,7 @@ export async function getFromYtdlp(id: string): Promise<PipedResult> {
     durationSec: num(j.duration) ?? 0,
     isLive,
     hls,
+    hlsHeaders: hls ? hlsHeaders : undefined,
     // Live mà đã có HLS thì bỏ các format rời đi: chúng là đoạn cố định, phát
     // được vài phút rồi đứng, mà lại được ưu tiên hơn HLS ở phía trình phát.
     formats: isLive && hls ? [] : formats,

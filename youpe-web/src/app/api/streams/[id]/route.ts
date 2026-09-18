@@ -147,7 +147,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       title: result.title,
       duration: result.durationSec,
       isLive: result.isLive,
-      hls: result.hls ? proxy(result.hls) : null,
+      hls: result.hls ? proxy(result.hls, result.hlsHeaders) : null,
       // báo rõ khi live mà không lấy được HLS, để phía trình phát nói cho người dùng biết
       liveWithoutHls: result.isLive && !result.hls,
       video,

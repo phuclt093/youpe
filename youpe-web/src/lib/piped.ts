@@ -44,6 +44,12 @@ export type PipedResult = {
   durationSec: number;
   isLive: boolean;
   hls?: string;
+  /**
+   * Header phải gửi kèm khi tải playlist HLS (và playlist con, segment của nó).
+   * Cùng lý do như `PipedFormat.headers`: URL live cũng bị ràng với client đã
+   * sinh ra nó — gọi bằng UA khác là googlevideo trả 403.
+   */
+  hlsHeaders?: Record<string, string>;
   formats: PipedFormat[];
 };
 
