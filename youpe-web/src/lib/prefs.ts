@@ -9,7 +9,10 @@ export type Prefs = {
   animations: boolean;
   /** Tiếp tục phát khi cửa sổ bị ẩn hoặc chuyển sang tab khác */
   playInBackground: boolean;
-  /** Rời trang xem thì thu nhỏ thành cửa sổ con thay vì dừng hẳn */
+  /**
+   * Rời trang xem thì thu nhỏ vào góc dưới phải của app (như YouTube) thay vì dừng hẳn.
+   * Đây **không phải** cửa sổ nổi của hệ điều hành — cái đó chỉ mở khi tự bấm nút.
+   */
   miniOnLeave: boolean;
   /** Rê chuột lên thumbnail thì phát thử một đoạn không tiếng */
   hoverPreview: boolean;

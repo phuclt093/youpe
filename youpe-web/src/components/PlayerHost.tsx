@@ -34,7 +34,12 @@ export type PlayingVideo = {
   related: EndCardItem[];
 };
 
-type Mode = 'full' | 'pip';
+/**
+ * `full`  — trình phát nằm trong khung của trang xem
+ * `mini`  — thu nhỏ vào góc dưới phải **ngay trong app**, giống YouTube khi rời trang xem
+ * `pip`   — cửa sổ nổi riêng của hệ điều hành, chỉ mở khi người dùng tự bấm nút
+ */
+type Mode = 'full' | 'mini' | 'pip';
 
 type Ctx = {
   current: PlayingVideo | null;
@@ -42,8 +47,11 @@ type Ctx = {
   /** Trình duyệt có hỗ trợ cửa sổ nổi kèm điều khiển riêng không */
   canPip: boolean;
   play: (v: PlayingVideo) => void;
+  /** Mở cửa sổ nổi của hệ điều hành — chỉ gọi khi người dùng tự bấm */
   openPip: () => void;
+  /** Đóng cửa sổ nổi, đưa trình phát về trang (hoặc về khung mini) */
   closePip: () => void;
+  /** Tắt hẳn: dừng video, nhả cửa sổ nổi, gỡ trình phát */
   close: () => void;
   registerSlot: (el: HTMLDivElement | null) => void;
   /** Tua trình phát tới giây thứ t — dùng cho mốc thời gian trong mô tả */
@@ -151,6 +159,8 @@ export default function PlayerHost({ children }: { children: React.ReactNode }) 
   const [canPip, setCanPip] = useState(false);
 
   const slotRef = useRef<HTMLDivElement | null>(null);
+  /** Khung cố định góc dưới phải, nơi trình phát đậu khi thu nhỏ */
+  const dockRef = useRef<HTMLDivElement | null>(null);
   const apiRef = useRef<PlayerApi | null>(null);
   const pipWinRef = useRef<Window | null>(null);
   /** Người dùng tự bấm mở cửa sổ nổi thì giữ nguyên ý muốn đó khi quay lại trang xem */
@@ -168,11 +178,41 @@ export default function PlayerHost({ children }: { children: React.ReactNode }) 
     el.id = 'youpe-player-host';
     el.className = 'w-full';
     document.body.appendChild(el);
+
+    /*
+      Khung mini cũng nằm ngoài React, cùng lý do với thẻ chứa: nó phải sống suốt vòng
+      đời app để `appendChild` qua lại mà không lần nào dựng lại thẻ `<video>`.
+    */
+    const dock = document.createElement('div');
+    dock.id = 'youpe-mini-dock';
+    /*
+      Viết thẳng bằng style chứ không dùng class tiện ích: thẻ này sinh ra bằng JS nên
+      Tailwind không quét thấy nếu chuỗi bị nối lại, mà mất một class thôi là khung
+      rơi xuống cuối trang. Màu vẫn trỏ vào biến chủ đề để đổi giao diện là ăn theo.
+    */
+    dock.style.cssText = [
+      'position:fixed',
+      'right:16px',
+      'bottom:16px',
+      'z-index:50',
+      'width:min(26rem, calc(100vw - 32px))',
+      'overflow:hidden',
+      'border-radius:12px',
+      'background:rgb(var(--yt-elev))',
+      'border:1px solid rgb(var(--yt-border))',
+      'box-shadow:0 12px 32px rgb(0 0 0 / 0.45)',
+      'display:none',
+    ].join(';');
+    document.body.appendChild(dock);
+    dockRef.current = dock;
+
     setHost(el);
     setCanPip(!!pipApi());
 
     return () => {
       el.remove();
+      dock.remove();
+      dockRef.current = null;
     };
   }, []);
 
@@ -180,10 +220,24 @@ export default function PlayerHost({ children }: { children: React.ReactNode }) 
   const place = useCallback(() => {
     if (!host) return;
 
+    const dock = dockRef.current;
+    if (dock) dock.style.display = 'none';
+
     const pip = pipWinRef.current;
     if (mode === 'pip' && pip && !pip.closed) {
       if (host.ownerDocument !== pip.document) pip.document.body.appendChild(host);
       host.style.display = '';
+      return;
+    }
+
+    /*
+      Thu nhỏ trong app: đây mới là thứ YouTube làm khi rời trang xem. Cửa sổ nổi của
+      hệ điều hành để dành cho lúc người dùng tự bấm nút.
+    */
+    if (mode === 'mini' && dock && current) {
+      if (host.parentElement !== dock) dock.appendChild(host);
+      host.style.display = '';
+      dock.style.display = '';
       return;
     }
 
@@ -200,9 +254,83 @@ export default function PlayerHost({ children }: { children: React.ReactNode }) 
     */
     if (host.parentElement !== document.body) document.body.appendChild(host);
     host.style.display = 'none';
-  }, [host, mode]);
+  }, [host, mode, current]);
 
   useEffect(place, [place, current]);
+
+  /* ---------- tắt hẳn ---------- */
+
+  /**
+   * Bấm X là tắt, không phải giấu đi.
+   *
+   * Chỗ này trước đây chỉ `setCurrent(null)`. Mà nếu video đang nằm trong cửa sổ nổi
+   * của trình duyệt thì Chromium vẫn giữ chặt thẻ `<video>` kể cả sau khi React gỡ nó
+   * khỏi cây DOM: cửa sổ nổi ở lại, tiếng vẫn chạy, và không còn đường nào tắt vì
+   * `document.pictureInPictureElement` trỏ tới một thẻ không ai tham chiếu nữa.
+   *
+   * Nên phải theo đúng thứ tự: giữ tham chiếu thẻ → câm tiếng và dừng ngay (đồng bộ,
+   * để không nghe thấy khoảng hở) → nhả cửa sổ nổi → cắt nguồn cho trình duyệt thu
+   * hồi bộ giải mã → cuối cùng mới gỡ trình phát.
+   */
+  const stopEverything = useCallback(() => {
+    closingSelf.current = true;
+    setTimeout(() => (closingSelf.current = false), 500);
+
+    const pipVideo = (document.pictureInPictureElement as HTMLVideoElement | null) ?? null;
+    const inPage = (host?.querySelector('video') as HTMLVideoElement | null) ?? null;
+
+    for (const v of new Set([pipVideo, inPage].filter(Boolean) as HTMLVideoElement[])) {
+      v.muted = true;
+      v.pause();
+    }
+    // luồng tiếng đi riêng ở chế độ 2 luồng, dừng thiếu là còn nghe tiếng
+    const a = host?.querySelector('audio') as HTMLAudioElement | null;
+    if (a) {
+      a.muted = true;
+      a.pause();
+    }
+
+    if (pipVideo) {
+      document
+        .exitPictureInPicture()
+        .catch(() => {})
+        .finally(() => {
+          pipVideo.removeAttribute('src');
+          try {
+            pipVideo.load();
+          } catch {
+            /* thẻ đã bị gỡ, không sao */
+          }
+        });
+    }
+
+    try {
+      pipWinRef.current?.close();
+    } catch {
+      /* cửa sổ đã đóng sẵn */
+    }
+    pipWinRef.current = null;
+    userChose.current = false;
+
+    setCurrent(null);
+    setMode('full');
+  }, [host]);
+
+  /**
+   * Cửa sổ nổi đóng thì trình phát về đâu: khung trên trang xem nếu còn đang ở đó,
+   * không thì đậu vào khung mini, còn người dùng đã tắt mini thì dừng hẳn.
+   */
+  const settleAfterPip = useCallback(() => {
+    if (slotRef.current) {
+      setMode('full');
+      return;
+    }
+    if (getPrefs().miniOnLeave) {
+      setMode('mini');
+      return;
+    }
+    stopEverything();
+  }, [stopEverything]);
 
   /* ---------- đổi video khi đang ở cửa sổ nổi thường ---------- */
 
@@ -339,9 +467,9 @@ export default function PlayerHost({ children }: { children: React.ReactNode }) 
         remember();
         pipWinRef.current = null;
         userChose.current = false;
-        setMode('full');
-        // không còn chỗ nào để đặt thì dừng hẳn, đừng phát ngầm
-        if (!slotRef.current) setCurrent(null);
+        // app tự đóng (bấm X, hoặc "đưa về đây") thì nơi gọi đã lo phần mode rồi
+        if (closingSelf.current) return;
+        settleAfterPip();
       });
     } catch {
       /*
@@ -364,16 +492,28 @@ export default function PlayerHost({ children }: { children: React.ReactNode }) 
         host.style.display = 'none';
       }
     }
-  }, [host, current]);
+  }, [host, current, settleAfterPip]);
 
   const closePip = useCallback(() => {
     closingSelf.current = true;
-    pipWinRef.current?.close();
+    setTimeout(() => (closingSelf.current = false), 500);
+
+    try {
+      pipWinRef.current?.close();
+    } catch {
+      /* cửa sổ đã đóng sẵn */
+    }
     pipWinRef.current = null;
     userChose.current = false;
-    setMode('full');
-    setTimeout(() => (closingSelf.current = false), 500);
-  }, []);
+
+    // cửa sổ nổi kiểu gắn thẳng vào thẻ video cũng phải nhả, nếu không video biến mất
+    // khỏi trang mà vẫn chạy ở góc màn hình
+    if (document.pictureInPictureElement) {
+      document.exitPictureInPicture().catch(() => {});
+    }
+
+    settleAfterPip();
+  }, [settleAfterPip]);
 
   /* ---------- nút điều khiển trong cửa sổ nổi của hệ điều hành ---------- */
 
@@ -427,29 +567,25 @@ export default function PlayerHost({ children }: { children: React.ReactNode }) 
     };
   }, [current, router]);
 
-  /* ---------- thoát cửa sổ nổi thì quay về đúng video ---------- */
+  /* ---------- thoát cửa sổ nổi thì trình phát đậu lại trong app ---------- */
 
   /**
-   * Nút "Back to tab" của Chromium chỉ đưa cửa sổ app lên trước rồi thoát cửa sổ nổi —
-   * nó **không biết** app đang ở trang nào. Đang lướt trang chủ thì bấm xong vẫn ở
-   * trang chủ, còn video thì vừa bị lấy khỏi cửa sổ nổi nên biến mất.
-   *
-   * Nên tự điều hướng về trang xem. Chỉ làm khi đang không ở trang xem, để bấm thoát
-   * ngay trên trang xem không gây ra một lần chuyển trang thừa.
+   * Trước đây chỗ này tự `router.push('/watch')`. Nhưng thoát cửa sổ nổi không có
+   * nghĩa là muốn rời trang đang đọc dở — bị đá ngược về trang xem là hành vi không ai
+   * mong. Giờ video chỉ rơi về khung mini ở góc, đúng như YouTube; muốn về trang xem
+   * thì bấm nút phóng to trên thanh tiêu đề của khung đó.
    */
   useEffect(() => {
     const onLeave = () => {
       if (closingSelf.current) return;
-
-      const id = current?.videoId;
-      if (!id) return;
-      if (window.location.pathname === '/watch') return;
-      router.push(`/watch?v=${id}`);
+      if (!current) return;
+      settleAfterPip();
+      requestAnimationFrame(place);
     };
 
     document.addEventListener('leavepictureinpicture', onLeave, true);
     return () => document.removeEventListener('leavepictureinpicture', onLeave, true);
-  }, [current, router]);
+  }, [current, settleAfterPip, place]);
 
   /* ---------- Esc trong cửa sổ nổi thì đóng ---------- */
   useEffect(() => {
@@ -475,9 +611,13 @@ export default function PlayerHost({ children }: { children: React.ReactNode }) 
       slotRef.current = el;
 
       if (!el && current && mode !== 'pip') {
-        // rời trang xem: chuyển sang cửa sổ nổi thay vì dừng hẳn
-        if (getPrefs().miniOnLeave) openPip();
-        else setCurrent(null);
+        /*
+          Rời trang xem: thu nhỏ vào góc app. Cửa sổ nổi của hệ điều hành **không** tự
+          bật ở đây nữa — nó là thứ người dùng chủ động bấm, không phải thứ nhảy ra
+          mỗi lần bấm nút Back.
+        */
+        if (getPrefs().miniOnLeave) setMode('mini');
+        else stopEverything();
       } else if (el && mode !== 'pip') {
         setMode('full');
       }
@@ -485,22 +625,14 @@ export default function PlayerHost({ children }: { children: React.ReactNode }) 
       // hoãn một nhịp để chờ DOM của trang mới dựng xong
       requestAnimationFrame(place);
     },
-    [current, mode, place, openPip]
+    [current, mode, place, stopEverything]
   );
 
   const play = useCallback((v: PlayingVideo) => {
     setCurrent((prev) => (prev?.videoId === v.videoId ? { ...prev, ...v } : v));
   }, []);
 
-  const close = useCallback(() => {
-    closingSelf.current = true;
-    setTimeout(() => (closingSelf.current = false), 500);
-    pipWinRef.current?.close();
-    pipWinRef.current = null;
-    userChose.current = false;
-    setCurrent(null);
-    setMode('full');
-  }, []);
+  const close = stopEverything;
 
   const seek = useCallback((t: number) => apiRef.current?.seek(t), []);
   const api = useCallback(() => apiRef.current, []);
@@ -518,12 +650,12 @@ export default function PlayerHost({ children }: { children: React.ReactNode }) 
         current &&
         createPortal(
           <div className="relative">
-            {mode === 'pip' && (
+            {mode !== 'full' && (
               <PipBar
                 title={current.title}
                 channel={current.channelName}
                 onExpand={() => {
-                  closePip();
+                  if (mode === 'pip') closePip();
                   router.push(`/watch?v=${current.videoId}`);
                   window.focus();
                 }}
@@ -541,7 +673,7 @@ export default function PlayerHost({ children }: { children: React.ReactNode }) 
               onToggleTheater={() => mode === 'full' && setTheater((t) => !t)}
               related={current.related}
               onPickVideo={(next) => router.push(`/watch?v=${next}`)}
-              compact={mode === 'pip'}
+              compact={mode !== 'full'}
               onMinimize={mode === 'full' ? () => openPip(true) : undefined}
               registerApi={(api) => {
                 apiRef.current = api;
@@ -555,10 +687,11 @@ export default function PlayerHost({ children }: { children: React.ReactNode }) 
 }
 
 /**
- * Thanh tiêu đề trong cửa sổ nổi.
+ * Thanh tiêu đề của trình phát thu nhỏ — dùng chung cho khung mini trong app và cho
+ * cửa sổ nổi của hệ điều hành.
  *
- * Cửa sổ nổi của trình duyệt không có thanh tiêu đề riêng, nên nếu không tự vẽ thì
- * chẳng biết mình đang xem video nào và cũng không có lối quay về trang xem.
+ * Cả hai đều không có thanh tiêu đề sẵn, nên nếu không tự vẽ thì chẳng biết mình đang
+ * xem video nào và cũng không có lối quay về trang xem hay tắt hẳn.
  */
 function PipBar({
   title,
@@ -580,8 +713,8 @@ function PipBar({
 
       <button
         onClick={onExpand}
-        title="Mở lại ở cửa sổ chính"
-        aria-label="Mở lại ở cửa sổ chính"
+        title="Mở trang xem"
+        aria-label="Mở trang xem"
         className="rounded-full p-1.5 hover:bg-yt-hover"
       >
         <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor" aria-hidden>
@@ -591,8 +724,8 @@ function PipBar({
 
       <button
         onClick={onClose}
-        title="Đóng (Esc)"
-        aria-label="Đóng"
+        title="Tắt video"
+        aria-label="Tắt video"
         className="rounded-full p-1.5 hover:bg-yt-red"
       >
         <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor" aria-hidden>

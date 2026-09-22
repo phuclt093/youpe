@@ -100,11 +100,23 @@ const workerScript = () =>
 /** Tìm lệnh Python có sẵn gói yt_dlp */
 async function findPython(): Promise<string | null> {
   const fromEnv = process.env.YTDLP_PYTHON?.trim();
+  /*
+    Ưu tiên virtualenv riêng của dự án (`youpe-web/.venv`). Linux Mint/Ubuntu mới chặn
+    `pip install` vào Python hệ thống (PEP 668), nên đây là cách cài yt_dlp gọn nhất
+    mà không phải đặt thêm biến môi trường:
+      python3 -m venv .venv && .venv/bin/pip install -U "yt-dlp[default]"
+  */
+  const venv =
+    process.platform === 'win32'
+      ? path.resolve(process.cwd(), '.venv', 'Scripts', 'python.exe')
+      : path.resolve(process.cwd(), '.venv', 'bin', 'python');
+
   const candidates = fromEnv
     ? [fromEnv]
-    : process.platform === 'win32'
-      ? ['python', 'py', 'python3']
-      : ['python3', 'python'];
+    : [
+        ...(existsSync(venv) ? [venv] : []),
+        ...(process.platform === 'win32' ? ['python', 'py', 'python3'] : ['python3', 'python']),
+      ];
 
   for (const cmd of candidates) {
     try {

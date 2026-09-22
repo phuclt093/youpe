@@ -65,3 +65,6 @@ youpe-desktop/release/
 !youpe-desktop/build/icon.svg
 !youpe-desktop/build/icon.png
 !youpe-desktop/build/icon.ico
+
+# virtualenv Python cho yt-dlp worker
+.venv/

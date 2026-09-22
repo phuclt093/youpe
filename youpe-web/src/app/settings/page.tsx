@@ -55,19 +55,19 @@ const GROUPS: Group[] = [
   },
   {
     id: 'pip',
-    title: 'Cửa sổ nổi',
+    title: 'Trình phát thu nhỏ',
     icon: PipIcon,
     items: [
       {
         kind: 'toggle',
         key: 'miniOnLeave',
-        label: 'Chuyển sang cửa sổ nổi khi rời trang xem',
-        hint: 'Chuyển sang trang khác thì video nhảy ra cửa sổ nổi riêng thay vì dừng hẳn. Cửa sổ này nằm trên mọi ứng dụng khác, kéo thả và đổi cỡ như cửa sổ thường, và có đủ nút điều khiển.',
+        label: 'Thu nhỏ vào góc khi rời trang xem',
+        hint: 'Chuyển sang trang khác thì video thu nhỏ vào góc dưới phải ngay trong app và phát tiếp, thay vì dừng hẳn. Bấm X trên khung đó là tắt hẳn. Muốn tách ra thành cửa sổ nổi riêng của hệ điều hành thì bấm nút cửa sổ nổi trên thanh điều khiển (phím I).',
       },
       {
         kind: 'toggle',
         key: 'keepPipOnVideoChange',
-        label: 'Giữ video mới trong cửa sổ nổi',
+        label: 'Giữ cửa sổ nổi khi đổi video',
         hint: 'Đang xem ở cửa sổ nổi mà chuyển sang video khác thì video mới tự mở lại trong cửa sổ nổi. Tắt đi thì video mới phát bình thường trên trang, cửa sổ nổi tự đóng.',
       },
       {

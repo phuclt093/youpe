@@ -134,6 +134,28 @@ export async function GET(req: NextRequest) {
     range = `bytes=${start}-${end}`;
   }
 
+  /**
+   * Cắt yêu cầu mở đầu kiểu `bytes=N-` thành từng khúc có giới hạn.
+   *
+   * Ở chế độ 2 luồng, thẻ `<video>`/`<audio>` trỏ thẳng vào proxy và trình duyệt luôn
+   * xin `Range: bytes=0-` (tới hết file). googlevideo bóp tốc độ những lời gọi luồng
+   * adaptive không có điểm kết thúc — thường xuống sát tốc độ phát, có lúc thấp hơn.
+   * Hệ quả là video "lâu lâu" mới chậm: tuỳ máy chủ googlevideo nào nhận request,
+   * có cái bóp có cái không. Tua xong cũng vậy, vì tua là một lời gọi `bytes=N-` mới.
+   *
+   * yt-dlp tránh chuyện này bằng cách tải từng khúc 10 MB; làm y như vậy. Upstream
+   * trả 206 kèm `Content-Range: bytes N-M/<tổng>` nên trình duyệt biết file còn dài
+   * và tự xin khúc tiếp theo — không cần phía trình phát biết gì.
+   */
+  const CHUNK = Number(process.env.STREAM_CHUNK_BYTES ?? 10 * 1024 * 1024);
+  if (cap === 0 && CHUNK > 0 && /(^|\.)googlevideo\.com$/i.test(target.hostname)) {
+    const open = /^bytes=(\d+)-$/.exec(range ?? '');
+    if (open) {
+      const start = Number(open[1]);
+      range = `bytes=${start}-${start + CHUNK - 1}`;
+    }
+  }
+
   const fetchWith = (h: Record<string, string>) =>
     fetch(target.toString(), {
       headers: range ? { ...h, Range: range } : h,
