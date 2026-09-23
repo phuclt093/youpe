@@ -1,5 +1,5 @@
 import { Innertube, UniversalCache } from 'youtubei.js';
-import type { VideoItem, ChannelItem, CommentItem } from './types';
+import type { VideoItem, ChannelItem, CommentItem, PlaylistItem } from './types';
 
 let _yt: Promise<Innertube> | null = null;
 
@@ -170,7 +170,7 @@ export function mapVideo(raw: any): VideoItem | null {
   if (n?.type === 'LockupView') {
     const id: string = n?.content_id ?? '';
     const title = txt(n?.metadata?.title);
-    if (!id || !title || n?.content_type === 'CHANNEL') return null;
+    if (!id || !title || n?.content_type === 'CHANNEL' || n?.content_type === 'PLAYLIST') return null;
 
     const rows = lockupRows(n);
     const image =
@@ -230,7 +230,75 @@ export function mapVideo(raw: any): VideoItem | null {
       avatar: bestThumb(author?.thumbnails),
       verified: !!(author?.is_verified || author?.is_verified_artist),
     },
+    description:
+      txt(n?.description_snippet) ||
+      txt(n?.snippets?.[0]?.text) ||
+      undefined,
+    badges: (n?.badges ?? [])
+      .map((b: any) => txt(b?.label) || txt(b?.text))
+      .filter((x: string) => x && x.length <= 20),
   };
+}
+
+/** Playlist trong kết quả tìm kiếm / trang kênh — mỗi bản youtubei.js đặt khác nhau */
+export function collectPlaylists(feed: any, limit = 40): PlaylistItem[] {
+  const out: PlaylistItem[] = [];
+  const seen = new Set<string>();
+
+  const push = (n: any) => {
+    const id = n?.id ?? n?.content_id ?? n?.playlist_id;
+    if (!id || seen.has(id) || out.length >= limit) return;
+
+    const title = txt(n?.title) || txt(n?.metadata?.title);
+    if (!title) return;
+
+    const overlays: any[] = n?.content_image?.primary_thumbnail?.overlays ?? [];
+    const overlayCount = overlays
+      .map((o: any) => txt(o?.badges?.[0]?.text) || txt(o?.text))
+      .find(Boolean);
+
+    seen.add(id);
+    out.push({
+      id,
+      title,
+      thumbnail:
+        bestThumb(
+          n?.thumbnails ??
+            n?.thumbnail ??
+            n?.content_image?.primary_thumbnail?.image ??
+            n?.content_image?.collection_thumbnail_view?.primary_thumbnail?.image,
+          300
+        ) || '',
+      videoCount:
+        txt(n?.video_count) ||
+        txt(n?.video_count_short) ||
+        txt(n?.thumbnail_overlays?.[0]?.text) ||
+        overlayCount ||
+        '',
+      author: txt(n?.author?.name) || lockupRows(n).author || undefined,
+    });
+  };
+
+  try {
+    for (const n of feed?.playlists ?? []) push(n);
+  } catch {
+    /* getter có thể không tồn tại */
+  }
+  if (out.length) return out;
+
+  const stack: any[] = [feed];
+  let guard = 0;
+  while (stack.length && guard++ < 20000) {
+    const n = stack.pop();
+    if (!n || typeof n !== 'object') continue;
+    if (['Playlist', 'GridPlaylist', 'LockupView'].includes(n.type)) {
+      if (n.type !== 'LockupView' || n.content_type === 'PLAYLIST') push(n);
+    }
+    const kids = n.contents ?? n.items ?? n.results ?? n.content;
+    if (Array.isArray(kids)) for (let i = kids.length - 1; i >= 0; i--) stack.push(kids[i]);
+    else if (kids) stack.push(kids);
+  }
+  return out;
 }
 
 export function mapChannel(raw: any): ChannelItem | null {

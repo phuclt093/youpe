@@ -36,7 +36,31 @@ export type PipedFormat = {
    * thay vì gắn cứng một User-Agent cho mọi thứ.
    */
   headers?: Record<string, string>;
+  /**
+   * Thông tin track âm thanh (chỉ có ở format audio/muxed).
+   *
+   * YouTube giờ tự lồng tiếng AI cho nhiều video: cùng một video có thể có luồng
+   * tiếng gốc (vd tiếng Việt) và các luồng lồng tiếng Anh, Tây Ban Nha... Không
+   * phân biệt thì chọn theo bitrate sẽ vớ nhầm bản lồng tiếng.
+   */
+  audioLang?: string;
+  audioTrackName?: string;
+  /** true = track gốc / mặc định của video; false = lồng tiếng, mô tả âm thanh... */
+  audioOriginal?: boolean;
 };
+
+/**
+ * Chỉ giữ track âm thanh gốc khi video có nhiều track.
+ *
+ * Nếu nguồn không đánh dấu được track nào là gốc (video thường chỉ có một track)
+ * thì giữ nguyên mọi thứ như trước.
+ */
+export function keepOriginalAudio<T extends PipedFormat>(formats: T[]): T[] {
+  const withTrack = (f: T) => f.kind !== 'video';
+  const hasOriginal = formats.some((f) => withTrack(f) && f.audioOriginal === true);
+  if (!hasOriginal) return formats;
+  return formats.filter((f) => !withTrack(f) || f.audioOriginal !== false);
+}
 
 export type PipedResult = {
   source: string;
@@ -145,6 +169,29 @@ async function fetchJson(url: string, timeoutMs = 8000): Promise<any> {
 
 /* ---------------- Piped ---------------- */
 
+/** Piped: audioTrackType = ORIGINAL | DUBBED | DESCRIPTIVE | ... */
+function pipedTrack(s: any): Partial<PipedFormat> {
+  const type = String(s?.audioTrackType ?? '').toUpperCase();
+  if (!type && !s?.audioTrackId) return {};
+  return {
+    audioLang: s.audioTrackLocale ?? s.audioTrackId?.split('.')[0] ?? undefined,
+    audioTrackName: s.audioTrackName ?? undefined,
+    audioOriginal: type ? type === 'ORIGINAL' : undefined,
+  };
+}
+
+/** Invidious: audioTrack = { id: "vi.4", displayName: "Vietnamese original", audioIsDefault } */
+function invidiousTrack(s: any): Partial<PipedFormat> {
+  const t = s?.audioTrack;
+  if (!t) return {};
+  const name: string = t.displayName ?? '';
+  return {
+    audioLang: t.id?.split('.')[0] ?? undefined,
+    audioTrackName: name || undefined,
+    audioOriginal: /original/i.test(name) || t.audioIsDefault === true,
+  };
+}
+
 function parsePiped(host: string, j: any): PipedResult {
   const map = (s: any, kind: 'video' | 'audio' | 'muxed'): PipedFormat | null => {
     if (!s?.url) return null;
@@ -167,6 +214,7 @@ function parsePiped(host: string, j: any): PipedResult {
       indexStart: num(s.indexStart),
       indexEnd: num(s.indexEnd),
       contentLength: num(s.contentLength),
+      ...pipedTrack(s),
     };
   };
 
@@ -215,6 +263,7 @@ function parseInvidious(host: string, j: any): PipedResult {
         indexStart,
         indexEnd,
         contentLength: num(s.clen),
+        ...invidiousTrack(s),
       };
     })
     .filter(Boolean) as PipedFormat[];

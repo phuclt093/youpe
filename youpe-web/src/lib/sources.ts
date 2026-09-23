@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import type { PipedResult } from './piped';
-import { getFromFallback } from './piped';
+import { getFromFallback, keepOriginalAudio } from './piped';
 import { getFromYtdlp } from './ytdlp';
 import { warmWorker } from './ytdlp-worker';
 import { getPlayableInfo } from './player';
@@ -50,6 +50,18 @@ async function fromInnertube(id: string): Promise<PipedResult> {
         indexStart: f.index_range?.start,
         indexEnd: f.index_range?.end,
         contentLength: f.content_length,
+        ...(f.has_audio && (f.audio_track || f.is_original !== undefined || f.is_dubbed)
+          ? {
+              audioLang: f.language ?? f.audio_track?.id?.split('.')[0],
+              audioTrackName: f.audio_track?.display_name,
+              audioOriginal:
+                f.is_original === true || f.audio_track?.audio_is_default === true
+                  ? true
+                  : f.is_dubbed || f.is_auto_dubbed || f.is_descriptive
+                    ? false
+                    : undefined,
+            }
+          : {}),
       };
     })
   );
@@ -112,7 +124,8 @@ const cache = new Map<string, { at: number; outcome: ResolveOutcome }>();
 const dataDir = process.env.YOUPE_DATA_DIR || path.resolve(process.cwd(), 'data');
 // đổi tên khi cấu trúc dữ liệu thay đổi, để bản ghi cũ tự bị bỏ qua
 // v3 (16/09/2026): bỏ toàn bộ URL do worker yt_dlp cũ sinh ra — chúng đều 403
-const cacheFile = path.join(dataDir, 'stream-cache-v3.json');
+// v4 (22/09/2026): bản cũ trộn cả track lồng tiếng, phát nhầm tiếng Anh
+const cacheFile = path.join(dataDir, 'stream-cache-v4.json');
 
 let flushTimer: NodeJS.Timeout | null = null;
 
@@ -225,6 +238,8 @@ async function resolveUncached(id: string): Promise<ResolveOutcome> {
   for (const step of steps) {
     try {
       const result = await step.run();
+      // Bỏ các track lồng tiếng (AI dub) — luôn phát tiếng gốc như YouTube
+      result.formats = keepOriginalAudio(result.formats);
       if (result.formats.length || result.hls) {
         // Live bắt buộc phải có HLS. Thiếu thì đi hỏi InnerTube — nếu vẫn không có
         // thì các format rời kia là đoạn cố định, xem một lúc sẽ đứng hình.

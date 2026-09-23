@@ -1,23 +1,46 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getYT, videosFrom, mapChannel, txt, bestThumb } from '@/lib/innertube';
+import { getYT, videosFrom, mapChannel, txt, bestThumb, collectPlaylists } from '@/lib/innertube';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+/*
+  Bộ lọc giống hộp "Bộ lọc tìm kiếm" của YouTube. Giá trị nào không hợp lệ thì bỏ
+  qua, để URL gõ tay hay link cũ vẫn tìm được bình thường.
+*/
+const TYPES = ['video', 'shorts', 'channel', 'playlist', 'movie'];
+const DURATIONS = ['under_three_mins', 'three_to_twenty_mins', 'over_twenty_mins'];
+const DATES = ['today', 'week', 'month', 'year'];
+const FEATURES = ['live', '4k', 'hd', 'subtitles', 'creative_commons', '360', 'vr180', '3d', 'hdr', 'location', 'purchased'];
+
 export async function GET(req: NextRequest) {
-  const q = req.nextUrl.searchParams.get('q')?.trim();
-  const filter = req.nextUrl.searchParams.get('filter') || 'all';
-  if (!q) return NextResponse.json({ videos: [], channels: [] });
+  const sp = req.nextUrl.searchParams;
+  const q = sp.get('q')?.trim();
+  if (!q) return NextResponse.json({ videos: [], channels: [], playlists: [] });
+
+  // `filter` là tham số cũ (Tất cả/Video/Kênh/Danh sách phát) — vẫn nhận
+  const type = sp.get('type') || sp.get('filter') || '';
+  const duration = sp.get('duration') || '';
+  const date = sp.get('date') || '';
+  const sort = sp.get('sort') || '';
+  const features = (sp.get('features') || '').split(',').filter((f) => FEATURES.includes(f));
 
   try {
     const yt = await getYT();
     const opts: any = {};
-    if (filter === 'video') opts.type = 'video';
-    if (filter === 'channel') opts.type = 'channel';
-    if (filter === 'playlist') opts.type = 'playlist';
+    if (TYPES.includes(type)) opts.type = type;
+    if (DURATIONS.includes(duration)) opts.duration = duration;
+    if (DATES.includes(date)) opts.upload_date = date;
+    if (sort === 'popularity') opts.prioritize = 'popularity';
+    if (features.length) opts.features = features;
 
     const res: any = await yt.search(q, opts);
-    const videos = videosFrom(res, 40);
+
+    const onlyChannels = opts.type === 'channel';
+    const onlyPlaylists = opts.type === 'playlist';
+
+    const videos = onlyChannels || onlyPlaylists ? [] : videosFrom(res, 40);
+    const playlists = onlyChannels ? [] : collectPlaylists(res, onlyPlaylists ? 40 : 6);
 
     const channels: any[] = [];
     const walk = (n: any, d = 0) => {
@@ -43,8 +66,12 @@ export async function GET(req: NextRequest) {
     };
     walk(res);
 
-    return NextResponse.json({ videos, channels: channels.slice(0, 3) });
+    return NextResponse.json({
+      videos,
+      channels: channels.slice(0, onlyChannels ? 30 : 3),
+      playlists,
+    });
   } catch (e: any) {
-    return NextResponse.json({ videos: [], channels: [], error: e?.message }, { status: 200 });
+    return NextResponse.json({ videos: [], channels: [], playlists: [], error: e?.message }, { status: 200 });
   }
 }

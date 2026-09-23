@@ -79,7 +79,7 @@ export default function PlaylistDetail({ params }: { params: Promise<{ id: strin
         <div className="flex gap-2">
           {playlist.videos.length > 0 && (
             <button
-              onClick={() => router.push(`/watch?v=${playlist.videos[0].id}`)}
+              onClick={() => router.push(`/watch?v=${playlist.videos[0].id}&list=my:${playlist.id}`)}
               className="rounded-full bg-yt-text px-4 py-2 text-sm font-medium text-yt-bg hover:bg-yt-text/90"
             >
               Phát tất cả
@@ -124,12 +124,12 @@ export default function PlaylistDetail({ params }: { params: Promise<{ id: strin
                 {i + 1}
               </span>
 
-              <Link href={`/watch?v=${v.id}`} className="w-full shrink-0 sm:w-[246px]">
+              <Link href={`/watch?v=${v.id}&list=my:${playlist.id}`} className="w-full shrink-0 sm:w-[246px]">
                 <Thumb v={v} />
               </Link>
 
               <div className="min-w-0 flex-1">
-                <Link href={`/watch?v=${v.id}`} className="line-clamp-2 text-base font-medium">
+                <Link href={`/watch?v=${v.id}&list=my:${playlist.id}`} className="line-clamp-2 text-base font-medium">
                   {v.title}
                 </Link>
                 <p className="mt-1 text-xs text-yt-sub">

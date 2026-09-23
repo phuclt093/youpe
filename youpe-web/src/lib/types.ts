@@ -8,6 +8,18 @@ export type VideoItem = {
   publishedText: string;
   isLive: boolean;
   author: { id: string; name: string; avatar: string; verified: boolean };
+  /** Đoạn mô tả ngắn — chỉ có ở kết quả tìm kiếm */
+  description?: string;
+  /** Nhãn nhỏ dưới mô tả: "4K", "Mới", "Phụ đề"... */
+  badges?: string[];
+};
+
+export type PlaylistItem = {
+  id: string;
+  title: string;
+  thumbnail: string;
+  videoCount: string;
+  author?: string;
 };
 
 export type ChannelItem = {

@@ -14,6 +14,7 @@ import SaveToPlaylist from '@/components/SaveToPlaylist';
 import LiveChat from '@/components/LiveChat';
 import Description from '@/components/Description';
 import SubscribeButton from '@/components/SubscribeButton';
+import PlaylistPanel, { usePlaylistQueue } from '@/components/PlaylistPanel';
 import type { VideoDetail, VideoItem } from '@/lib/types';
 
 export default function WatchPage() {
@@ -30,9 +31,14 @@ export default function WatchPage() {
   const [related, setRelated] = useState<VideoItem[]>([]);
   const [mix, setMix] = useState<{ source: string; count: number }[]>([]);
   const [loadingRelated, setLoadingRelated] = useState(true);
+  /** Thông tin trận đấu Xoilac, làm mới định kỳ để tỉ số không đứng yên */
+  const [match, setMatch] = useState<any>(null);
 
   const searchParams = useSearchParams();
   const sourceParam = searchParams.get('source');
+  // ?list=... → đang xem trong một danh sách phát
+  const listId = searchParams.get('list') ?? '';
+  const queue = usePlaylistQueue(listId);
   const isXoilac = id.startsWith('xl_') || sourceParam === 'xoilac';
 
   useEffect(() => {
@@ -49,9 +55,10 @@ export default function WatchPage() {
             return;
           }
           const m = j.match;
+          setMatch(m);
           setData({
             id: m.id,
-            title: `⚽ [Xoilac TV] ${m.homeTeam.name} vs ${m.awayTeam.name} (${m.score}) - ${m.league}`,
+            title: `${m.homeTeam.name} vs ${m.awayTeam.name} · ${m.league}`,
             description: `Trực tiếp trận đấu ${m.title} thuộc giải ${m.league}.\nTrạng thái: ${m.matchTime}.\nTỷ số hiện tại: ${m.score}.\nBình luận viên: ${m.commentator || 'Xoilac TV'}.`,
             views: null,
             viewsText: m.matchTime,
@@ -84,6 +91,35 @@ export default function WatchPage() {
     }
   }, [id, isXoilac]);
 
+  /*
+    Trong danh sách phát thì "video tiếp theo" phải là video kế nó trong danh sách,
+    không phải video đề xuất — đó mới là điều người xem chờ đợi khi bấm Phát tất cả.
+  */
+  const upNext: VideoItem[] = (() => {
+    if (!queue?.videos.length) return [];
+    const i = queue.videos.findIndex((v) => v.id === id);
+    if (i < 0) return queue.videos.filter((v) => v.id !== id);
+    return queue.videos.slice(i + 1);
+  })();
+
+  const playerList = upNext.length ? upNext : related.length ? related : data?.related ?? [];
+
+  /*
+    Tỉ số và phút thi đấu lấy một lần lúc mở trang thì đứng yên suốt trận. Hỏi lại
+    mỗi 30 giây — chỉ dữ liệu trận, không đụng tới luồng đang phát.
+  */
+  useEffect(() => {
+    if (!isXoilac || !id) return;
+    const tick = () => {
+      fetch(`/api/xoilac/stream?matchId=${encodeURIComponent(id)}`)
+        .then((r) => r.json())
+        .then((j) => j?.match && setMatch(j.match))
+        .catch(() => {});
+    };
+    const t = setInterval(tick, 30000);
+    return () => clearInterval(t);
+  }, [isXoilac, id]);
+
   // đưa video cho trình phát dùng chung — nó sống ngoài cây trang nên
   // chuyển trang không làm video nạp lại
   useEffect(() => {
@@ -94,7 +130,7 @@ export default function WatchPage() {
       channelName: data.channel.name,
       poster: `https://i.ytimg.com/vi/${data.id}/maxresdefault.jpg`,
       captions: data.captions,
-      related: (related.length ? related : data.related).map((v) => ({
+      related: playerList.map((v) => ({
         id: v.id,
         title: v.title,
         thumbnail: v.thumbnail,
@@ -102,7 +138,8 @@ export default function WatchPage() {
         author: { name: v.author.name },
       })),
     });
-  }, [data, related, play]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, related, play, listId, queue?.videos]);
 
   // gợi ý: trộn nhiều nguồn, có pha thêm hành vi xem gần đây
   useEffect(() => {
@@ -159,11 +196,12 @@ export default function WatchPage() {
   // Đang xem thì âm thầm lấy sẵn luồng của video kế tiếp — bấm sang là phát ngay.
   // Hoãn 4 giây để không tranh băng thông với video đang chạy.
   useEffect(() => {
-    const next = related[0]?.id;
+    const next = playerList[0]?.id;
     if (!next) return;
     const t = setTimeout(() => prefetchNow(next), 4000);
     return () => clearTimeout(t);
-  }, [related]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playerList[0]?.id]);
 
   const asItem = (d: VideoDetail): VideoItem => ({
     id: d.id,
@@ -195,6 +233,8 @@ export default function WatchPage() {
           )}
 
           <div className={theater ? 'mx-auto max-w-[1280px] px-4 lg:px-6' : ''}>
+            {match && <Scoreboard m={match} />}
+
             {/* tiêu đề */}
             <h1 className="mt-3 text-xl font-bold leading-7">
               {data?.title ?? <span className="skeleton block h-6 w-2/3 rounded" />}
@@ -286,6 +326,10 @@ export default function WatchPage() {
             )}
 
             {/* video liên quan trên mobile */}
+            <div className="mt-6 xl:hidden">
+              {queue && <PlaylistPanel queue={queue} currentId={id} />}
+            </div>
+
             <div className="mt-6 space-y-3 xl:hidden">
               {(related.length ? related : data?.related ?? []).map((v) => (
                 <VideoCard key={v.id} v={v} compact />
@@ -304,6 +348,8 @@ export default function WatchPage() {
                 <LiveChat videoId={data.id} />
               </div>
             )}
+
+            {queue && <PlaylistPanel queue={queue} currentId={id} />}
 
             <div className="mb-2 flex flex-wrap items-baseline gap-x-2 gap-y-1">
               <p className="text-sm font-medium">Video đề xuất</p>
@@ -346,6 +392,53 @@ export default function WatchPage() {
           }}
         />
       )}
+    </div>
+  );
+}
+
+/**
+ * Bảng tỉ số cho trận đang xem ở mục Bóng đá.
+ *
+ * Trước đây mọi thứ bị nhồi vào tiêu đề video thành một dòng dài loằng ngoằng —
+ * tên hai đội, tỉ số, giải đấu. Tách ra thành bảng thì liếc một cái là thấy.
+ */
+function Scoreboard({ m }: { m: any }) {
+  const live = m.status === 'live';
+
+  return (
+    <div className="mt-3 flex items-center gap-4 rounded-xl bg-yt-elev px-4 py-3">
+      <Side name={m.homeTeam?.name} logo={m.homeTeam?.logo} align="right" />
+
+      <div className="shrink-0 text-center">
+        <p className="text-2xl font-bold tabular-nums">{m.score || 'vs'}</p>
+        <p className="mt-0.5 flex items-center justify-center gap-1.5 text-[11px] text-yt-sub">
+          {live && <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-yt-red" />}
+          {m.matchTime}
+        </p>
+      </div>
+
+      <Side name={m.awayTeam?.name} logo={m.awayTeam?.logo} align="left" />
+
+      <div className="hidden min-w-0 shrink-0 border-l border-yt-border pl-4 text-xs text-yt-sub sm:block">
+        <p className="truncate font-medium text-yt-text">{m.league}</p>
+        {m.commentator && <p className="truncate">BLV {m.commentator}</p>}
+      </div>
+    </div>
+  );
+}
+
+function Side({ name, logo, align }: { name?: string; logo?: string; align: 'left' | 'right' }) {
+  return (
+    <div
+      className={`flex min-w-0 flex-1 items-center gap-3 ${
+        align === 'right' ? 'flex-row-reverse text-right' : 'text-left'
+      }`}
+    >
+      {logo && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={logo} alt="" className="h-10 w-10 shrink-0 rounded-full object-cover" />
+      )}
+      <span className="truncate text-sm font-medium">{name}</span>
     </div>
   );
 }

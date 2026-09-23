@@ -19,6 +19,9 @@ export type EndCardItem = {
   author: { name: string };
 };
 
+/** Khoá nhớ nguồn bình luận đã chọn cho từng trận Xoilac */
+const XOILAC_SRC_KEY = 'youpe.xoilacSource.';
+
 const AUTOPLAY_DELAY = 10;
 
 /**
@@ -136,6 +139,10 @@ export default function Player({
   const [resolving, setResolving] = useState(false);
   const [waited, setWaited] = useState(0);
   const [isLive, setIsLive] = useState(false);
+  /** Số lần đang thử kết nối lại luồng trực tiếp; 0 = đang bình thường */
+  const [reconnect, setReconnect] = useState(0);
+  /** Đang xem tụt lại phía sau mốc trực tiếp (do tạm dừng, hoặc mạng nghẽn) */
+  const [behindLive, setBehindLive] = useState(false);
   const [resumed, setResumed] = useState(0);
   const resumeDone = useRef(false);
 
@@ -160,6 +167,11 @@ export default function Player({
   const modeRef = useRef<Mode>('dash');
   const dualListRef = useRef<RawFormat[] | null>(null);
   const dualAudioRef = useRef<RawFormat | null>(null);
+  /** Manifest đang phát — cần giữ lại để nối lại khi luồng trực tiếp đứt */
+  const manifestRef = useRef<string>('');
+  const isLiveRef = useRef(false);
+  const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const retryCount = useRef(0);
   const tracksRef = useRef<Track[]>([]);
 
   useEffect(() => {
@@ -299,6 +311,12 @@ export default function Player({
     setResolving(false);
     setWaited(0);
     setIsLive(false);
+    setReconnect(0);
+    setBehindLive(false);
+    isLiveRef.current = false;
+    manifestRef.current = '';
+    retryCount.current = 0;
+    if (retryTimer.current) clearTimeout(retryTimer.current);
     setResumed(0);
     resumeDone.current = false;
     setPlaying(false);
@@ -306,6 +324,40 @@ export default function Player({
     setDuration(0);
     setBuffered(0);
     setAuto(true);
+
+    /**
+     * Nối lại luồng trực tiếp sau khi đứt: chờ tăng dần 1s → 2s → 4s… tối đa 10s,
+     * thử 6 lần rồi mới chịu thua và hiện lỗi. Mỗi lần nối lại đều nhảy thẳng tới
+     * mốc trực tiếp, vì xem lại đoạn vừa mất thì không còn là trực tiếp nữa.
+     */
+    const reconnectLive = (msg: string) => {
+      if (dead) return;
+      const url = manifestRef.current;
+      const p = playerRef.current;
+      if (!url || !p) return;
+
+      if (retryCount.current >= 6) {
+        showError('Mất kết nối tới luồng trực tiếp. Thử đổi nguồn khác hoặc bấm Thử lại.', msg);
+        return;
+      }
+
+      const n = ++retryCount.current;
+      setReconnect(n);
+      console.warn(`[youpe] luồng trực tiếp đứt (${msg}) — nối lại lần ${n}`);
+
+      if (retryTimer.current) clearTimeout(retryTimer.current);
+      retryTimer.current = setTimeout(async () => {
+        if (dead) return;
+        try {
+          await p.load(url);
+          retryCount.current = 0;
+          setReconnect(0);
+          autoplay();
+        } catch (e: any) {
+          reconnectLive(e?.message ?? 'không nối lại được');
+        }
+      }, Math.min(1000 * 2 ** (n - 1), 10000));
+    };
 
     const startShaka = async (manifestUrl: string) => {
       const mod: any = await import('shaka-player/dist/shaka-player.compiled.js');
@@ -328,10 +380,41 @@ export default function Player({
         streaming: { bufferingGoal: 30, rebufferingGoal: 4, retryParameters: { maxAttempts: 3 } },
         abr: { enabled: true },
       });
-      player.addEventListener('error', (e: any) => !dead && showError(e?.detail?.message || `Shaka Error ${e?.detail?.code}`));
 
+      /*
+        Luồng trực tiếp đứt quãng là chuyện thường: nhà đài đổi đoạn, mạng nghẽn vài
+        giây, máy chủ nhả kết nối. Trước đây gặp là hiện ngay màn hình lỗi và người
+        xem phải tự bấm Thử lại — giữa trận bóng thì rất khó chịu. Giờ tự nối lại.
+      */
+      player.addEventListener('error', (e: any) => {
+        if (dead) return;
+        const msg = e?.detail?.message || `Shaka Error ${e?.detail?.code}`;
+        if (isLiveRef.current && manifestRef.current) reconnectLive(msg);
+        else showError(msg);
+      });
+
+      manifestRef.current = manifestUrl;
       await player.load(manifestUrl);
       if (dead) return;
+
+      /*
+        Trực tiếp thì đệm ít thôi: đệm 30 giây nghĩa là xem chậm hơn thực tế nửa phút,
+        bàn thắng hàng xóm hò reo xong mới thấy trên màn hình. 12 giây đủ để chịu được
+        mạng chập chờn mà vẫn bám sát.
+      */
+      if (player.isLive?.()) {
+        isLiveRef.current = true;
+        setIsLive(true);
+        player.configure({
+          streaming: {
+            bufferingGoal: 12,
+            rebufferingGoal: 2,
+            retryParameters: { maxAttempts: 6, baseDelay: 500, timeout: 20000 },
+          },
+        });
+      }
+      retryCount.current = 0;
+      setReconnect(0);
 
       const byHeight = new Map<number, any>();
       player.getVariantTracks().forEach((t: any) => {
@@ -364,7 +447,19 @@ export default function Player({
 
         /* ---------- Xử lý nguồn Xoilac ---------- */
         if (videoId.startsWith('xl_')) {
-          const query = `/api/xoilac/stream?matchId=${videoId}${selectedXoilacSourceId ? `&sourceId=${selectedXoilacSourceId}` : ''}`;
+          /*
+            Nhớ nguồn (BLV) đã chọn cho từng trận: mỗi người quen một bình luận viên,
+            bắt chọn lại mỗi lần mở trận là phiền.
+          */
+          let sourceId = selectedXoilacSourceId;
+          if (!sourceId) {
+            try {
+              sourceId = localStorage.getItem(`${XOILAC_SRC_KEY}${videoId}`) ?? '';
+            } catch {
+              /* chế độ riêng tư có thể chặn localStorage */
+            }
+          }
+          const query = `/api/xoilac/stream?matchId=${videoId}${sourceId ? `&sourceId=${sourceId}` : ''}`;
           const r = await fetch(query);
           if (!dead) setResolving(false);
           const j = await r.json().catch(() => ({}));
@@ -374,7 +469,7 @@ export default function Player({
             setIsLive(true);
             setXoilacSources(j.allSources || []);
             setActiveXoilacSource(j.activeSource || null);
-            setDegraded(`⚽ Xoilac TV · ${j.activeSource?.name || 'Trực tiếp'}`);
+            setDegraded(`Xoilac · ${j.activeSource?.name || 'Trực tiếp'}`);
             await startShaka(j.hlsUrl);
             return;
           } else {
@@ -401,7 +496,8 @@ export default function Player({
         // Với video trực tiếp, yt-dlp cũng trả vài format rời nhưng chúng là đoạn
         // cố định — phát được ít phút rồi đứng hình. Chỉ HLS mới bám theo luồng.
         if (j.hls) {
-          setDegraded(`${j.source} · trực tiếp`);
+          console.info(`[youpe] ${j.source} · trực tiếp`);
+          setDegraded('Trực tiếp');
           await startShaka(j.hls);
           return;
         }
@@ -427,16 +523,19 @@ export default function Player({
           const start = pickStartIndex(j.video, preferredMaxHeight());
           attachDual(j.video, j.audio[0], start);
           setMode('dual');
-          setDegraded(
-            `${j.source} · ${j.video[start]?.label ?? ''}${j.ms ? ` · ${(j.ms / 1000).toFixed(1)}s` : ''}`
+          // Chi tiết kỹ thuật (nguồn, thời gian lấy luồng) chỉ ghi ra console
+          console.info(
+            `[youpe] ${j.source} · ${j.video[start]?.label ?? ''}${j.ms ? ` · ${(j.ms / 1000).toFixed(1)}s` : ''}`
           );
+          setDegraded(j.video[start]?.label ?? '');
         } else if (j.muxed?.length) {
           v.src = j.muxed[0].url;
           setMode('muxed');
-          setDegraded(
-            `${j.source} · luồng gộp${j.muxed[0].height ? ` ${j.muxed[0].height}p` : ''}` +
+          console.info(
+            `[youpe] ${j.source} · luồng gộp${j.muxed[0].height ? ` ${j.muxed[0].height}p` : ''}` +
               (j.ms ? ` · ${(j.ms / 1000).toFixed(1)}s` : '')
           );
+          setDegraded(j.muxed[0].height ? `${j.muxed[0].height}p` : '');
         } else {
           showError('Không có luồng nào phát được cho video này');
           return;
@@ -477,7 +576,13 @@ export default function Player({
         el.load(); // bắt buộc: chỉ xoá src thôi thì request vẫn chạy
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [videoId, attachDual, autoplay, selectedXoilacSourceId]);
+
+  // dọn hẹn giờ nối lại khi rời trình phát
+  useEffect(() => () => {
+    if (retryTimer.current) clearTimeout(retryTimer.current);
+  }, []);
 
   /* ---------------- đếm giây trong lúc chờ ---------------- */
 
@@ -611,6 +716,81 @@ export default function Player({
     // attachDual là useCallback([]) nên định danh không đổi — thêm vào đây chỉ để
     // đúng quy tắc, không làm effect chạy lại.
   }, [onEnded, attachDual]);
+
+  /* ---------------- trực tiếp: canh chừng đứng hình ---------------- */
+
+  /**
+   * Luồng trực tiếp có kiểu hỏng im lặng: thẻ video không báo lỗi, không báo
+   * "waiting", chỉ là thời gian không nhích nữa. Tự đo lấy: đang phát mà 15 giây
+   * không tiến được giây nào thì nạp lại manifest.
+   *
+   * Nhân tiện đo luôn khoảng cách tới mốc trực tiếp, để hiện nút "Về trực tiếp".
+   */
+  useEffect(() => {
+    if (!isLive) return;
+
+    let last = -1;
+    let stuck = 0;
+
+    const timer = setInterval(() => {
+      const v = videoRef.current;
+      const p = playerRef.current;
+      if (!v) return;
+
+      if (p?.seekRange) {
+        try {
+          const end = p.seekRange().end;
+          if (Number.isFinite(end) && end > 0) setBehindLive(end - v.currentTime > 20);
+        } catch {
+          /* chưa có dải tua */
+        }
+      }
+
+      if (v.paused) {
+        last = -1;
+        stuck = 0;
+        return;
+      }
+
+      if (Math.abs(v.currentTime - last) < 0.1) stuck += 1;
+      else stuck = 0;
+      last = v.currentTime;
+
+      if (stuck >= 15) {
+        stuck = 0;
+        const url = manifestRef.current;
+        if (p && url) {
+          console.warn('[youpe] luồng trực tiếp đứng hình — nạp lại');
+          setReconnect((n) => n || 1);
+          p.load(url)
+            .then(() => {
+              setReconnect(0);
+              v.play().catch(() => {});
+            })
+            .catch(() => {});
+        }
+      }
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [isLive]);
+
+  /** Nhảy tới mốc trực tiếp mới nhất */
+  const jumpToLive = useCallback(() => {
+    const v = videoRef.current;
+    const p = playerRef.current;
+    if (!v || !p?.seekRange) return;
+    try {
+      const end = p.seekRange().end;
+      if (Number.isFinite(end) && end > 0) {
+        v.currentTime = Math.max(0, end - 2);
+        setBehindLive(false);
+        v.play().catch(() => {});
+      }
+    } catch {
+      /* luồng chưa sẵn sàng */
+    }
+  }, []);
 
   /* ---------------- tiến độ xem ---------------- */
 
@@ -908,6 +1088,7 @@ export default function Player({
       }
     }
 
+    if (t.label && !isLive) setDegraded(t.label);
     if (mode === 'dual' && dualList) {
       const wasPlaying = !videoRef.current?.paused;
       attachDual(dualList, dualAudio, t.id, videoRef.current?.currentTime ?? 0);
@@ -996,6 +1177,15 @@ export default function Player({
         </button>
       )}
 
+      {reconnect > 0 && !error && (
+        <div className="anim-fade-in absolute inset-x-0 top-1/2 flex -translate-y-1/2 justify-center">
+          <div className="flex items-center gap-3 rounded-full bg-black/80 px-4 py-2 text-sm">
+            <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+            Mất kết nối — đang nối lại (lần {reconnect})
+          </div>
+        </div>
+      )}
+
       {isLive && !error && (
         <div className="anim-fade-in pointer-events-none absolute right-3 top-3 flex items-center gap-1.5 rounded-full bg-yt-red px-2.5 py-1 text-xs font-medium">
           <span className="h-1.5 w-1.5 rounded-full bg-white" />
@@ -1021,8 +1211,17 @@ export default function Player({
         </div>
       )}
 
+      {/*
+        Nhãn nhỏ góc trên: chỉ hiện cùng thanh điều khiển rồi mờ đi theo, không
+        đè lên hình suốt cả video như trước.
+      */}
       {degraded && !error && (
-        <div className="anim-fade-in pointer-events-none absolute left-3 top-3 rounded-full bg-black/70 px-3 py-1 text-xs text-yt-sub">
+        <div
+          className={`pointer-events-none absolute left-3 top-3 flex items-center gap-1.5 rounded-md bg-black/40 px-2 py-0.5 text-[11px] font-medium tracking-wide text-white/80 backdrop-blur-sm transition-opacity duration-300 ${
+            controlsVisible ? 'opacity-100' : 'opacity-0'
+          }`}
+        >
+          {isLive && <span className="h-1.5 w-1.5 rounded-full bg-red-500" />}
           {degraded}
         </div>
       )}
@@ -1240,10 +1439,16 @@ export default function Player({
           </div>
 
           {isLive ? (
-            <span className="ml-2 flex items-center gap-1.5 text-xs font-medium">
-              <span className="h-2 w-2 rounded-full bg-yt-red" />
+            <button
+              onClick={jumpToLive}
+              title={behindLive ? 'Xem tiếp từ mốc trực tiếp' : 'Đang bám mốc trực tiếp'}
+              className={`ml-2 flex items-center gap-1.5 rounded px-1.5 py-0.5 text-xs font-medium transition-colors ${
+                behindLive ? 'text-white/70 hover:bg-white/10 hover:text-white' : ''
+              }`}
+            >
+              <span className={`h-2 w-2 rounded-full ${behindLive ? 'bg-white/50' : 'bg-yt-red'}`} />
               TRỰC TIẾP
-            </span>
+            </button>
           ) : (
             <span className="ml-2 text-xs tabular-nums">
               {formatDuration(time)} / {formatDuration(duration)}
@@ -1304,6 +1509,11 @@ export default function Player({
                         setSelectedXoilacSourceId(src.id);
                         setActiveXoilacSource(src);
                         setMenu(null);
+                        try {
+                          localStorage.setItem(`${XOILAC_SRC_KEY}${videoId}`, src.id);
+                        } catch {
+                          /* không lưu được thì thôi, chỉ mất phần ghi nhớ */
+                        }
                       }}
                       className={`block w-full px-4 py-2 text-left hover:bg-white/10 ${
                         activeXoilacSource?.id === src.id ? 'font-semibold text-emerald-400' : ''

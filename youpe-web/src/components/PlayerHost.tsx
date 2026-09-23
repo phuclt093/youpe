@@ -258,6 +258,23 @@ export default function PlayerHost({ children }: { children: React.ReactNode }) 
 
   useEffect(place, [place, current]);
 
+  /*
+    `registerSlot` được PlayerSlot gọi lúc gắn và lúc gỡ, nhưng nó chỉ đọc hàm này
+    **một lần** (effect với mảng phụ thuộc rỗng, cố ý — chạy lại sẽ làm thẻ chứa nhảy
+    lung tung). Vì vậy hàm đó phải đứng yên và tự đọc trạng thái mới nhất qua ref.
+
+    Không có mấy cái ref này thì lúc rời trang xem, `registerSlot` vẫn là bản chụp từ
+    lần render đầu — khi ấy `current` còn null vì dữ liệu video chưa về — nên nhánh
+    "thu nhỏ vào góc" không bao giờ chạy: trình phát bị giấu đi thay vì đậu lại ở góc
+    dưới phải. Đúng lỗi "ra trang chủ là mất khung xem nhỏ".
+  */
+  const currentRef = useRef(current);
+  const modeRef = useRef(mode);
+  const placeRef = useRef(place);
+  currentRef.current = current;
+  modeRef.current = mode;
+  placeRef.current = place;
+
   /* ---------- tắt hẳn ---------- */
 
   /**
@@ -272,19 +289,23 @@ export default function PlayerHost({ children }: { children: React.ReactNode }) 
    * để không nghe thấy khoảng hở) → nhả cửa sổ nổi → cắt nguồn cho trình duyệt thu
    * hồi bộ giải mã → cuối cùng mới gỡ trình phát.
    */
+  const hostRef = useRef(host);
+  hostRef.current = host;
+
   const stopEverything = useCallback(() => {
     closingSelf.current = true;
     setTimeout(() => (closingSelf.current = false), 500);
 
     const pipVideo = (document.pictureInPictureElement as HTMLVideoElement | null) ?? null;
-    const inPage = (host?.querySelector('video') as HTMLVideoElement | null) ?? null;
+    const h = hostRef.current;
+    const inPage = (h?.querySelector('video') as HTMLVideoElement | null) ?? null;
 
     for (const v of new Set([pipVideo, inPage].filter(Boolean) as HTMLVideoElement[])) {
       v.muted = true;
       v.pause();
     }
     // luồng tiếng đi riêng ở chế độ 2 luồng, dừng thiếu là còn nghe tiếng
-    const a = host?.querySelector('audio') as HTMLAudioElement | null;
+    const a = h?.querySelector('audio') as HTMLAudioElement | null;
     if (a) {
       a.muted = true;
       a.pause();
@@ -314,7 +335,7 @@ export default function PlayerHost({ children }: { children: React.ReactNode }) 
 
     setCurrent(null);
     setMode('full');
-  }, [host]);
+  }, []);
 
   /**
    * Cửa sổ nổi đóng thì trình phát về đâu: khung trên trang xem nếu còn đang ở đó,
@@ -609,8 +630,10 @@ export default function PlayerHost({ children }: { children: React.ReactNode }) 
   const registerSlot = useCallback(
     (el: HTMLDivElement | null) => {
       slotRef.current = el;
+      const cur = currentRef.current;
+      const m = modeRef.current;
 
-      if (!el && current && mode !== 'pip') {
+      if (!el && cur && m !== 'pip') {
         /*
           Rời trang xem: thu nhỏ vào góc app. Cửa sổ nổi của hệ điều hành **không** tự
           bật ở đây nữa — nó là thứ người dùng chủ động bấm, không phải thứ nhảy ra
@@ -618,14 +641,14 @@ export default function PlayerHost({ children }: { children: React.ReactNode }) 
         */
         if (getPrefs().miniOnLeave) setMode('mini');
         else stopEverything();
-      } else if (el && mode !== 'pip') {
+      } else if (el && m !== 'pip') {
         setMode('full');
       }
 
       // hoãn một nhịp để chờ DOM của trang mới dựng xong
-      requestAnimationFrame(place);
+      requestAnimationFrame(() => placeRef.current());
     },
-    [current, mode, place, stopEverything]
+    [stopEverything]
   );
 
   const play = useCallback((v: PlayingVideo) => {

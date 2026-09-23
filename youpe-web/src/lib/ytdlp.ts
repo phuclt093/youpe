@@ -52,6 +52,26 @@ function pickHeaders(h: any): Record<string, string> | undefined {
   return Object.keys(out).length ? out : undefined;
 }
 
+/**
+ * yt-dlp đánh dấu track âm thanh bằng `language_preference`: 10 = tiếng gốc,
+ * 5 = mặc định, -1 = lồng tiếng, -10 = mô tả âm thanh. `format_note` cũng ghi
+ * "original" / "dubbed". Video chỉ có một track thì không có trường nào cả.
+ */
+function ytdlpTrack(f: any): { audioLang?: string; audioTrackName?: string; audioOriginal?: boolean } {
+  if (!f?.acodec || f.acodec === 'none') return {};
+  const pref = num(f.language_preference);
+  const note: string = f.format_note ?? '';
+  let original: boolean | undefined;
+  if (/original/i.test(note)) original = true;
+  else if (pref !== undefined && pref >= 10) original = true;
+  else if (/dubbed|descriptive/i.test(note) || (pref !== undefined && pref < 0 && f.language)) original = false;
+  return {
+    audioLang: f.language ?? undefined,
+    audioTrackName: note || undefined,
+    audioOriginal: original,
+  };
+}
+
 function mimeOf(ext: string, kind: 'video' | 'audio' | 'muxed'): string {
   const container =
     ext === 'webm' ? 'webm' : ext === 'm4a' || ext === 'mp4' ? 'mp4' : ext || 'mp4';
@@ -421,6 +441,7 @@ export async function getFromYtdlp(id: string): Promise<PipedResult> {
       audioSampleRate: num(f.asr),
       audioChannels: num(f.audio_channels),
       contentLength: num(f.filesize) ?? num(f.filesize_approx),
+      ...ytdlpTrack(f),
       // yt-dlp tự chọn player client và mỗi client cần một User-Agent riêng —
       // không mang theo là proxy gọi bằng UA sai rồi ăn 403.
       headers: pickHeaders(f.http_headers) ?? pickHeaders(j.http_headers),

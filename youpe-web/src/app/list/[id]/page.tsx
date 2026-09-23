@@ -104,7 +104,7 @@ export default function PlaylistPage({ params }: { params: Promise<{ id: string 
 
             {first && (
               <Link
-                href={`/watch?v=${first.id}`}
+                href={`/watch?v=${first.id}&list=${id}`}
                 className="mt-4 flex w-full items-center justify-center gap-2 rounded-full bg-yt-text px-4 py-2.5 text-sm font-medium text-yt-bg hover:bg-yt-text/90"
               >
                 <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor" aria-hidden>
@@ -129,7 +129,7 @@ export default function PlaylistPage({ params }: { params: Promise<{ id: string 
             : data.videos.map((v, i) => (
                 <Link
                   key={`${v.id}-${i}`}
-                  href={`/watch?v=${v.id}`}
+                  href={`/watch?v=${v.id}&list=${id}`}
                   style={{ animationDelay: `${Math.min(i, 11) * 30}ms` }}
                   className="anim-fade-up group flex gap-3 rounded-xl p-2 hover:bg-yt-hover"
                 >
