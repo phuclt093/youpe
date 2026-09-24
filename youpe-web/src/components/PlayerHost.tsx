@@ -49,6 +49,8 @@ type Ctx = {
   play: (v: PlayingVideo) => void;
   /** Mở cửa sổ nổi của hệ điều hành — chỉ gọi khi người dùng tự bấm */
   openPip: () => void;
+  /** Thu nhỏ vào góc dưới phải NGAY TRONG app (miniplayer của YouTube) */
+  openMini: () => void;
   /** Đóng cửa sổ nổi, đưa trình phát về trang (hoặc về khung mini) */
   closePip: () => void;
   /** Tắt hẳn: dừng video, nhả cửa sổ nổi, gỡ trình phát */
@@ -66,6 +68,7 @@ const PlayerCtx = createContext<Ctx>({
   canPip: false,
   play: () => {},
   openPip: () => {},
+  openMini: () => {},
   closePip: () => {},
   close: () => {},
   registerSlot: () => {},
@@ -171,6 +174,14 @@ export default function PlayerHost({ children }: { children: React.ReactNode }) 
    * về trang xem ngay lập tức.
    */
   const closingSelf = useRef(false);
+  /**
+   * Người dùng vừa tự bấm nút thu nhỏ.
+   *
+   * Cần cờ này vì ngay sau đó trang xem bị gỡ, `registerSlot(null)` chạy và nếu
+   * tuỳ chọn "thu nhỏ khi rời trang xem" đang tắt thì nó sẽ tắt luôn video — đúng
+   * cái ngược lại với điều vừa được yêu cầu.
+   */
+  const wantMini = useRef(false);
 
   /* ---------- tạo thẻ chứa, một lần duy nhất ---------- */
   useEffect(() => {
@@ -515,6 +526,36 @@ export default function PlayerHost({ children }: { children: React.ReactNode }) 
     }
   }, [host, current, settleAfterPip]);
 
+  /**
+   * Nút thu nhỏ: video rơi xuống khung nhỏ góc dưới phải và người xem quay lại
+   * trang trước để lướt tiếp — giống hệt miniplayer của YouTube. Khác với cửa sổ
+   * nổi của hệ điều hành ở chỗ nó vẫn nằm trong app.
+   */
+  const openMini = useCallback(() => {
+    if (!currentRef.current) return;
+    wantMini.current = true;
+    setTimeout(() => (wantMini.current = false), 1000);
+
+    // đang ở cửa sổ nổi thì thu về app trước
+    if (modeRef.current === 'pip') {
+      closingSelf.current = true;
+      setTimeout(() => (closingSelf.current = false), 500);
+      try {
+        pipWinRef.current?.close();
+      } catch {
+        /* cửa sổ đã đóng sẵn */
+      }
+      pipWinRef.current = null;
+      if (document.pictureInPictureElement) document.exitPictureInPicture().catch(() => {});
+    }
+
+    setMode('mini');
+
+    // rời trang xem để thấy khung nhỏ; không còn trang nào phía trước thì về trang chủ
+    if (window.history.length > 1) router.back();
+    else router.push('/');
+  }, [router]);
+
   const closePip = useCallback(() => {
     closingSelf.current = true;
     setTimeout(() => (closingSelf.current = false), 500);
@@ -639,7 +680,7 @@ export default function PlayerHost({ children }: { children: React.ReactNode }) 
           bật ở đây nữa — nó là thứ người dùng chủ động bấm, không phải thứ nhảy ra
           mỗi lần bấm nút Back.
         */
-        if (getPrefs().miniOnLeave) setMode('mini');
+        if (wantMini.current || getPrefs().miniOnLeave) setMode('mini');
         else stopEverything();
       } else if (el && m !== 'pip') {
         setMode('full');
@@ -661,8 +702,8 @@ export default function PlayerHost({ children }: { children: React.ReactNode }) 
   const api = useCallback(() => apiRef.current, []);
 
   const value = useMemo<Ctx>(
-    () => ({ current, mode, canPip, play, openPip, closePip, close, registerSlot, seek, api }),
-    [current, mode, canPip, play, openPip, closePip, close, registerSlot, seek, api]
+    () => ({ current, mode, canPip, play, openPip, openMini, closePip, close, registerSlot, seek, api }),
+    [current, mode, canPip, play, openPip, openMini, closePip, close, registerSlot, seek, api]
   );
 
   return (
@@ -697,6 +738,7 @@ export default function PlayerHost({ children }: { children: React.ReactNode }) 
               related={current.related}
               onPickVideo={(next) => router.push(`/watch?v=${next}`)}
               compact={mode !== 'full'}
+              onMini={mode === 'full' ? openMini : undefined}
               onMinimize={mode === 'full' ? () => openPip(true) : undefined}
               registerApi={(api) => {
                 apiRef.current = api;

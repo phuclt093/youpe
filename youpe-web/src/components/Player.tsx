@@ -77,6 +77,7 @@ export default function Player({
   related = [],
   onPickVideo,
   compact = false,
+  onMini,
   onMinimize,
   registerApi,
 }: {
@@ -91,6 +92,8 @@ export default function Player({
   onPickVideo?: (id: string) => void;
   /** Cửa sổ nhỏ: ẩn bớt nút và không hiện màn hình kết thúc */
   compact?: boolean;
+  /** Thu nhỏ vào góc dưới phải của app */
+  onMini?: () => void;
   /** Bấm nút thu nhỏ trên thanh điều khiển */
   onMinimize?: () => void;
   /** Phơi vài thao tác ra ngoài, ví dụ để mô tả bấm vào mốc thời gian là tua tới */
@@ -1069,14 +1072,14 @@ export default function Player({
         case 'f': toggleFs(); break;
         case 't': onToggleTheater(); break;
         case 'c': setCcOn((c) => !c); break;
-        case 'i': onMinimize?.(); break;
+        case 'i': (onMini ?? onMinimize)?.(); break;
         default: return;
       }
       nudgeUI();
     };
     window.addEventListener('keydown', h);
     return () => window.removeEventListener('keydown', h);
-  }, [togglePlay, seek, toggleFs, onToggleTheater, nudgeUI, onMinimize]);
+  }, [togglePlay, seek, toggleFs, onToggleTheater, nudgeUI, onMini, onMinimize]);
 
   const pickQuality = (t: Track) => {
     // nhớ lại để lần sau mở video khác cũng dùng mức này
@@ -1590,13 +1593,24 @@ export default function Player({
           )}
 
           {/*
-            Một nút duy nhất cho cửa sổ nổi. Trước đây có hai nút — "thu nhỏ" tự vẽ và
-            "cửa sổ nổi" của trình duyệt — làm cùng một việc nhưng giành nhau thẻ video.
-            Giờ chỉ còn một đường: `onMinimize` mở cửa sổ nổi có đủ nút điều khiển,
-            và tự lùi về cửa sổ nổi thường của trình duyệt nếu máy không hỗ trợ.
+            Hai nút, hai việc khác nhau — đúng như YouTube:
+
+            • Thu nhỏ (phím I): video rơi xuống khung nhỏ góc dưới phải NGAY TRONG app,
+              vẫn lướt trang khác được. Không đụng tới cửa sổ nổi của hệ điều hành.
+            • Cửa sổ nổi: tách hẳn ra một cửa sổ riêng, nổi trên mọi ứng dụng khác,
+              dùng khi muốn vừa xem vừa làm việc ngoài app.
+
+            Trước đây chỉ có nút thứ hai nên không còn đường nào gọi chế độ thu nhỏ
+            trong app, dù phần khung nhỏ đã có sẵn.
           */}
+          {!compact && onMini && (
+            <Btn onClick={onMini} label="Thu nhỏ (I)">
+              <path d="M21 3H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16.01H3V4.99h18v14.02zM11 13h8v4h-8v-4z" />
+            </Btn>
+          )}
+
           {!compact && onMinimize && (
-            <Btn onClick={onMinimize} label="Cửa sổ nổi (I)">
+            <Btn onClick={onMinimize} label="Cửa sổ nổi">
               <path d="M19 11h-8v6h8v-6zm4 8V4.98C23 3.88 22.1 3 21 3H3c-1.1 0-2 .88-2 1.98V19c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2zm-2 .02H3V4.97h18v14.05z" />
             </Btn>
           )}
