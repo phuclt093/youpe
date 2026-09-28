@@ -7,7 +7,38 @@ import Chips from '@/components/Chips';
 import { TOPICS, topicByKey } from '@/lib/topics';
 import { getSubs } from '@/lib/subs';
 import * as store from '@/lib/storage';
+import { getPrefs } from '@/lib/prefs';
 import type { VideoItem } from '@/lib/types';
+
+/** Cứ bấy nhiêu video YouTube thì chen một phim Bilibili */
+const BILI_EVERY = 4;
+
+/**
+ * Xen phim Bilibili vào giữa danh sách YouTube, đều đặn chứ không dồn một cục —
+ * dồn cục thì hoặc cả hàng đầu toàn Bilibili, hoặc phải cuộn rất sâu mới thấy.
+ */
+function interleave(yt: VideoItem[], bili: VideoItem[]): VideoItem[] {
+  if (!bili.length) return yt;
+  const out: VideoItem[] = [];
+  let b = 0;
+  yt.forEach((v, i) => {
+    out.push(v);
+    if ((i + 1) % BILI_EVERY === 0 && b < bili.length) out.push(bili[b++]);
+  });
+  // YouTube ít quá thì phần Bilibili còn lại nối vào cuối
+  return b < bili.length ? [...out, ...bili.slice(b)] : out;
+}
+
+/** Hỏi một trang phim Bilibili; hỏng thì coi như không có, trang chủ vẫn chạy */
+async function biliPage(page: number): Promise<VideoItem[]> {
+  try {
+    const r = await fetch(`/api/bili/home?page=${page}`);
+    const j = await r.json();
+    return j.items ?? [];
+  } catch {
+    return [];
+  }
+}
 
 const CHIPS = TOPICS.map((t) => ({ key: t.key, label: t.label }));
 
@@ -34,6 +65,10 @@ export default function HomePage() {
 
   const sentinel = useRef<HTMLDivElement>(null);
   const seen = useRef(new Set<string>());
+  /** Trang Bilibili kế tiếp cần hỏi; 0 = không trộn / nguồn đã hết */
+  const biliNext = useRef(0);
+  /** Số lần nạp thêm liên tiếp không ra video mới nào */
+  const emptyRounds = useRef(0);
 
   /* ---------- nạp lần đầu ---------- */
   useEffect(() => {
@@ -44,6 +79,10 @@ export default function HomePage() {
     setMix([]);
     setCanLoadMore(false);
     seen.current = new Set();
+    emptyRounds.current = 0;
+    // chỉ tab "Tất cả" mới trộn Bilibili; tab chủ đề là muốn đúng chủ đề đó
+    const mixBili = tab === 'home' && getPrefs().mixBilibili;
+    biliNext.current = mixBili ? 1 : 0;
     window.scrollTo({ top: 0 });
 
     /*
@@ -76,13 +115,17 @@ export default function HomePage() {
       }
     };
 
-    load()
-      .then(({ j, personal }) => {
+    Promise.all([load(), mixBili ? biliPage(1) : Promise.resolve([] as VideoItem[])])
+      .then(([{ j, personal }, bili]) => {
         if (!alive) return;
-        const list: VideoItem[] = j.videos ?? [];
+        biliNext.current = mixBili && bili.length ? 2 : 0;
+        const list: VideoItem[] = interleave(j.videos ?? [], bili);
         list.forEach((v) => seen.current.add(v.id));
         setVideos(list);
-        setMix(j.mix ?? []);
+        setMix([
+          ...(j.mix ?? []),
+          ...(bili.length ? [{ source: 'bilibili', count: bili.length }] : []),
+        ]);
         /*
           Trang chủ cá nhân hoá vẫn cuộn thêm được: phần "thêm" lấy từ feed chung
           qua `/api/feed`. Nội dung theo sở thích thì hữu hạn — hết video mới của
@@ -103,13 +146,28 @@ export default function HomePage() {
     if (loadingMore || !canLoadMore) return;
     setLoadingMore(true);
     try {
-      const r = await fetch(`/api/feed?tab=${tab}&more=1`);
-      const j = await r.json();
-      const fresh: VideoItem[] = (j.videos ?? []).filter((v: VideoItem) => !seen.current.has(v.id));
-      fresh.forEach((v: VideoItem) => seen.current.add(v.id));
+      const biliPg = biliNext.current;
+      const [j, bili] = await Promise.all([
+        fetch(`/api/feed?tab=${tab}&more=1`).then((r) => r.json()),
+        biliPg ? biliPage(biliPg) : Promise.resolve([] as VideoItem[]),
+      ]);
 
+      const freshYt: VideoItem[] = (j.videos ?? []).filter((v: VideoItem) => !seen.current.has(v.id));
+      const freshBili = bili.filter((v) => !seen.current.has(v.id));
+      biliNext.current = biliPg && freshBili.length ? biliPg + 1 : 0;
+
+      const fresh = interleave(freshYt, freshBili);
+      fresh.forEach((v) => seen.current.add(v.id));
       if (fresh.length) setVideos((prev) => [...prev, ...fresh]);
-      if (j.done || !fresh.length) setCanLoadMore(false);
+
+      /*
+        Chỉ dừng khi server nói hết thật, hoặc hai lượt liền không ra gì mới.
+        Trước đây một lượt toàn video trùng (chuyện thường ở lượt đầu, vì feed
+        chung hay lặp lại mấy video vừa có ở phần cá nhân hoá) là dừng luôn.
+      */
+      emptyRounds.current = fresh.length ? 0 : emptyRounds.current + 1;
+      const serverDone = j.done === true || j.canLoadMore === false;
+      if ((serverDone && !biliNext.current) || emptyRounds.current >= 2) setCanLoadMore(false);
     } catch {
       setCanLoadMore(false);
     } finally {

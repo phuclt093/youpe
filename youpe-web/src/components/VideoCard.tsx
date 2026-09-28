@@ -92,8 +92,21 @@ export function Thumb({ v, hovered = false }: { v: VideoItem; hovered?: boolean 
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={v.thumbnail}
-        alt={v.title}
+        alt=""
         loading="lazy"
+        /*
+          CDN ảnh của Bilibili từ chối khi thấy Referer là trang lạ (youpe) — ảnh vỡ,
+          chỉ còn chữ alt. Không gửi Referer thì họ cho qua. YouTube không quan tâm
+          chuyện này nên đặt chung cho mọi ảnh cũng không sao.
+          Vẫn hỏng thì thử một lần nữa qua proxy của app.
+        */
+        referrerPolicy="no-referrer"
+        onError={(e) => {
+          const img = e.currentTarget;
+          if (img.dataset.retried || !v.thumbnail || v.thumbnail.startsWith('/')) return;
+          img.dataset.retried = '1';
+          img.src = `/api/stream?u=${encodeURIComponent(v.thumbnail)}`;
+        }}
         className={`h-full w-full object-cover transition-opacity duration-300 ${
           previewOn ? 'opacity-0' : 'opacity-100'
         }`}
@@ -158,6 +171,41 @@ export function Thumb({ v, hovered = false }: { v: VideoItem; hovered?: boolean 
   );
 }
 
+/**
+ * Nhận diện nguồn ngay dưới tiêu đề, đúng chỗ YouTube đặt tên kênh.
+ *
+ * Phim Bilibili không có kênh nên dòng này bỏ trống, cả thẻ lệch hẳn so với các
+ * thẻ YouTube xung quanh. Đặt "● Bilibili" vào đó vừa lấp chỗ trống vừa cho biết
+ * nguồn — cùng kiểu chấm màu + tên với nút chuyển nguồn trên thanh tiêu đề.
+ */
+const isBili = (id: string) => id.startsWith('bili_');
+
+function SourceLine({ v, small = false }: { v: VideoItem; small?: boolean }) {
+  return (
+    <span className={`flex min-w-0 items-center gap-1.5 ${small ? 'text-xs' : 'text-[13px]'}`}>
+      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-sky-400" />
+      <span className="shrink-0 font-medium text-yt-text/80">Bilibili</span>
+      {v.author.name && (
+        <>
+          <span className="shrink-0">·</span>
+          <span className="truncate">{v.author.name}</span>
+        </>
+      )}
+    </span>
+  );
+}
+
+/** Ô tròn thế chỗ ảnh kênh, để thẻ Bilibili thẳng hàng với thẻ YouTube */
+function SourceAvatar() {
+  return (
+    <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-sky-400/15 text-sky-500">
+      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor" aria-hidden>
+        <path d="M8.3 2.3 11 5h2l2.7-2.7 1.06 1.06L15.1 5H19a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h3.9L7.24 3.36 8.3 2.3zM5 6.5a.5.5 0 0 0-.5.5v11c0 .28.22.5.5.5h14a.5.5 0 0 0 .5-.5V7a.5.5 0 0 0-.5-.5H5zm2.5 2.75h1.5v2h-1.5v-2zm7.5 0h1.5v2H15v-2zm-5 4h4v1.5h-4v-1.5z" />
+      </svg>
+    </div>
+  );
+}
+
 export default function VideoCard({
   v,
   compact = false,
@@ -206,8 +254,14 @@ export default function VideoCard({
         <div className="min-w-0 flex-1 pt-0.5">
           <h3 className="card-title line-clamp-2 text-sm font-medium leading-5">{v.title}</h3>
           <p className="mt-1 flex items-center gap-1 text-xs text-yt-sub">
-            <span className="truncate">{v.author.name}</span>
-            {v.author.verified && <VerifiedIcon className="h-3 w-3 shrink-0 text-yt-sub" />}
+            {isBili(v.id) ? (
+              <SourceLine v={v} small />
+            ) : (
+              <>
+                <span className="truncate">{v.author.name}</span>
+                {v.author.verified && <VerifiedIcon className="h-3 w-3 shrink-0 text-yt-sub" />}
+              </>
+            )}
           </p>
           <p className="text-xs text-yt-sub">
             {v.viewsText}
@@ -223,17 +277,25 @@ export default function VideoCard({
     <Link href={`/watch?v=${v.id}`} style={delay} {...warm} className="anim-fade-up group flex flex-col">
       <Thumb v={v} hovered={hovered} />
       <div className="mt-3 flex gap-3">
-        {v.author.avatar ? (
+        {isBili(v.id) && !v.author.avatar ? (
+          <SourceAvatar />
+        ) : v.author.avatar ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={v.author.avatar} alt="" className="h-9 w-9 shrink-0 rounded-full" loading="lazy" />
-        ) : (
+          <img src={v.author.avatar} alt="" className="h-9 w-9 shrink-0 rounded-full" loading="lazy" referrerPolicy="no-referrer" />
+        ) : v.author.name ? (
           <div className="h-9 w-9 shrink-0 rounded-full bg-yt-elev" />
-        )}
+        ) : null}
         <div className="min-w-0 flex-1">
           <h3 className="card-title line-clamp-2 text-[15px] font-medium leading-[22px]">{v.title}</h3>
           <p className="mt-1 flex items-center gap-1 text-[13px] text-yt-sub hover:text-yt-text">
-            <span className="truncate">{v.author.name}</span>
-            {v.author.verified && <VerifiedIcon className="h-3.5 w-3.5 shrink-0" />}
+            {isBili(v.id) ? (
+              <SourceLine v={v} />
+            ) : (
+              <>
+                <span className="truncate">{v.author.name}</span>
+                {v.author.verified && <VerifiedIcon className="h-3.5 w-3.5 shrink-0" />}
+              </>
+            )}
           </p>
           <p className="text-[13px] text-yt-sub">
             {v.viewsText}

@@ -169,7 +169,9 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     // Tách phần yt-dlp nói gì ra khỏi phần InnerTube/Piped — người dùng chỉ cần biết
     // câu đầu tiên, phần còn lại để dành cho lúc gỡ lỗi.
     const ytdlpPart = detail.split('||').find((p) => p.trim().startsWith('yt-dlp:'));
-    const cleaned = ytdlpPart?.replace(/^\s*yt-dlp:\s*/, '').trim() ?? '';
+    // bỏ luôn dấu hiệu BILI_LOGIN — nó dành cho trang xem, trình phát chỉ cần câu chữ
+    const cleaned =
+      ytdlpPart?.replace(/^\s*yt-dlp:\s*/, '').replace(/^BILI_LOGIN\s*/, '').trim() ?? '';
 
     let message: string;
     if (/không tìm thấy yt-dlp/.test(detail)) {

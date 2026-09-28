@@ -13,6 +13,7 @@ import type { VideoItem } from '@/lib/types';
  * `listId` lấy từ `?list=` trên URL:
  *   - "PL..." / "RD..."  → danh sách của YouTube, hỏi /api/playlist
  *   - "my:<id>"          → danh sách tự tạo, nằm trong máy người dùng
+ *   - "bili:<season_id>" → các tập của một phần phim trên Bilibili.tv
  */
 export type Queue = {
   id: string;
@@ -24,6 +25,7 @@ export type Queue = {
 };
 
 const LOCAL = 'my:';
+const BILI = 'bili:';
 
 /**
  * Nhớ danh sách đã tải trong phiên này.
@@ -105,20 +107,30 @@ export function usePlaylistQueue(listId: string): Queue | null {
     }
 
     let alive = true;
-    setQ({ id: listId, title: 'Danh sách phát', author: '', videos: [], loading: true, error: '' });
+    const bili = listId.startsWith(BILI);
+    setQ({ id: listId, title: bili ? 'Danh sách tập' : 'Danh sách phát', author: '', videos: [], loading: true, error: '' });
 
-    fetch(`/api/playlist/${listId}`)
+    fetch(bili ? `/api/bili/season/${listId.slice(BILI.length)}` : `/api/playlist/${listId}`)
       .then((r) => r.json())
       .then((j) => {
         if (!alive) return;
-        const q: Queue = {
-          id: listId,
-          title: j.title ?? 'Danh sách phát',
-          author: j.author?.name ?? '',
-          videos: j.videos ?? [],
-          loading: false,
-          error: j.error ?? '',
-        };
+        const q: Queue = bili
+          ? {
+              id: listId,
+              title: j.title ?? 'Danh sách tập',
+              author: 'Bilibili.tv',
+              videos: j.episodes ?? [],
+              loading: false,
+              error: j.error ?? (j.episodes?.length ? '' : 'Không lấy được danh sách tập.'),
+            }
+          : {
+              id: listId,
+              title: j.title ?? 'Danh sách phát',
+              author: j.author?.name ?? '',
+              videos: j.videos ?? [],
+              loading: false,
+              error: j.error ?? '',
+            };
         if (!q.error && q.videos.length) {
           memo.set(listId, q);
           rememberQueue(q);
@@ -140,7 +152,16 @@ export function usePlaylistQueue(listId: string): Queue | null {
 
 /** Link tới trang chi tiết của danh sách; danh sách tự tạo nằm ở /playlists */
 export function listHref(listId: string) {
+  // danh sách tập Bilibili không có trang riêng trong app
+  if (listId.startsWith(BILI)) return '';
   return listId.startsWith(LOCAL) ? `/playlists/${listId.slice(LOCAL.length)}` : `/list/${listId}`;
+}
+
+/** Tập Bilibili thì tự có danh sách tập của phần đó, khỏi cần `?list=` */
+export function biliSeasonList(videoId: string): string {
+  if (!videoId.startsWith('bili_p_')) return '';
+  const season = videoId.slice(7).split('_')[0];
+  return /^\d+$/.test(season) ? `${BILI}${season}` : '';
 }
 
 export default function PlaylistPanel({ queue, currentId }: { queue: Queue; currentId: string }) {
@@ -149,9 +170,13 @@ export default function PlaylistPanel({ queue, currentId }: { queue: Queue; curr
   return (
     <div className="mb-4 overflow-hidden rounded-xl border border-yt-border bg-yt-elev">
       <div className="border-b border-yt-border px-4 py-3">
-        <Link href={listHref(queue.id)} className="line-clamp-1 text-base font-medium hover:underline">
-          {queue.title}
-        </Link>
+        {listHref(queue.id) ? (
+          <Link href={listHref(queue.id)} className="line-clamp-1 text-base font-medium hover:underline">
+            {queue.title}
+          </Link>
+        ) : (
+          <p className="line-clamp-1 text-base font-medium">{queue.title}</p>
+        )}
         <p className="mt-0.5 line-clamp-1 text-xs text-yt-sub">
           {[queue.author, queue.videos.length ? `${index >= 0 ? index + 1 : '–'}/${queue.videos.length}` : '']
             .filter(Boolean)
@@ -229,13 +254,15 @@ export default function PlaylistPanel({ queue, currentId }: { queue: Queue; curr
         </ul>
       )}
 
-      <Link
-        href={listHref(queue.id)}
-        className="flex items-center gap-2 border-t border-yt-border px-4 py-2.5 text-xs font-medium text-yt-sub hover:bg-yt-hover hover:text-yt-text"
-      >
-        <PlaylistIcon className="h-4 w-4" />
-        Xem toàn bộ danh sách phát
-      </Link>
+      {listHref(queue.id) && (
+        <Link
+          href={listHref(queue.id)}
+          className="flex items-center gap-2 border-t border-yt-border px-4 py-2.5 text-xs font-medium text-yt-sub hover:bg-yt-hover hover:text-yt-text"
+        >
+          <PlaylistIcon className="h-4 w-4" />
+          Xem toàn bộ danh sách phát
+        </Link>
+      )}
     </div>
   );
 }

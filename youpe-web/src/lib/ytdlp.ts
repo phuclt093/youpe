@@ -134,10 +134,27 @@ function ytdlpArgs(id: string, strategy: Strategy): string[] {
     }
   }
 
-  const cookies = process.env.YTDLP_COOKIES_FROM_BROWSER?.trim();
-  if (cookies) args.push('--cookies-from-browser', cookies);
+  /*
+    Cookie tách riêng theo nguồn.
 
-  const cookieFile = process.env.YTDLP_COOKIES_FILE?.trim();
+    `--cookies-from-browser` tự lọc theo tên miền của trang đang tải, nên dùng chung
+    được cho cả hai nguồn. Nhưng file cookies.txt thì không: file xuất từ YouTube
+    chẳng có cookie nào của bilibili, đưa vào chỉ làm yt-dlp bối rối. Vì vậy Bilibili
+    có bộ biến riêng, và **không** rơi về file cookie của YouTube.
+
+      BILI_COOKIES_FROM_BROWSER=chrome
+      BILI_COOKIES_FILE=/duong/dan/bilibili-cookies.txt
+  */
+  const bili = isBiliId(id);
+
+  const browserCookies =
+    (bili ? process.env.BILI_COOKIES_FROM_BROWSER?.trim() : '') ||
+    process.env.YTDLP_COOKIES_FROM_BROWSER?.trim();
+  if (browserCookies) args.push('--cookies-from-browser', browserCookies);
+
+  const cookieFile = bili
+    ? process.env.BILI_COOKIES_FILE?.trim()
+    : process.env.YTDLP_COOKIES_FILE?.trim();
   if (cookieFile) args.push('--cookies', cookieFile);
 
   const proxy = process.env.YTDLP_PROXY?.trim() || process.env.HTTP_PROXY?.trim();
@@ -157,6 +174,22 @@ const RETRYABLE =
 /** Dịch lỗi thô của yt-dlp sang câu tiếng Việt nói rõ phải làm gì */
 export function explainYtdlpError(raw: string): string {
   const t = raw.toLowerCase();
+
+  /*
+    Bilibili.tv — các lỗi riêng của họ. Tiền tố [BiliIntl] do yt-dlp gắn vào, nên
+    nhận theo đó để không lẫn với các câu na ná của YouTube bên dưới.
+    Chuỗi "BILI_LOGIN" ở đầu là dấu hiệu cho trang xem hiện nút hướng dẫn đăng nhập.
+  */
+  if (/\[biliintl\]/.test(t)) {
+    if (/registered users|log ?in|sign ?in/.test(t))
+      return 'BILI_LOGIN Tập này chỉ xem được khi đã đăng nhập Bilibili. Cấu hình cookie một lần là xem được — không cần nhập mật khẩu vào youpe.';
+    if (/premium|vip|purchase|paid/.test(t))
+      return 'Tập này chỉ dành cho thành viên trả phí của Bilibili. youpe không mở khoá nội dung trả phí.';
+    if (/region|area|country|geo/.test(t))
+      return 'Tập này bị Bilibili giới hạn theo khu vực, không xem được từ vị trí của bạn.';
+    if (/timed out|timeout/.test(t))
+      return 'Bilibili phản hồi quá chậm. Thử lại sau ít phút.';
+  }
 
   if (/private video/.test(t)) return 'Video này ở chế độ riêng tư.';
   if (/members[- ]only|join this channel/.test(t))

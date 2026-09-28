@@ -104,7 +104,9 @@ export function prefetchNow(id: string) {
 
 /** Hẹn giờ gọi — dùng khi mới rê chuột vào */
 export function prefetchOnHover(id: string) {
-  if (!id || state.has(id) || timers.has(id)) return;
+  // Bilibili đi qua yt-dlp, mỗi lượt là một tiến trình mới — rê chuột lướt qua
+  // một lưới 20 thẻ mà nạp trước từng cái thì máy chủ nghẹt. Chỉ nạp khi bấm hẳn.
+  if (!id || id.startsWith('bili_') || state.has(id) || timers.has(id)) return;
 
   timers.set(
     id,
@@ -120,7 +122,7 @@ export function prefetchOnHover(id: string) {
  * Dùng cho vài card đầu của feed — lúc họ lướt tới thì đã sẵn sàng.
  */
 export function prefetchIdle(id: string, delayMs = 1500) {
-  if (!id || state.has(id) || timers.has(id)) return;
+  if (!id || id.startsWith('bili_') || state.has(id) || timers.has(id)) return;
 
   timers.set(
     id,

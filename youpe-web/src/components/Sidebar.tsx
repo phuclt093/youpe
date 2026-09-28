@@ -22,15 +22,16 @@ const GearIcon = ({ className = 'w-6 h-6' }: { className?: string }) => (
 
 type Item = { href: string; label: string; icon: (p: any) => React.JSX.Element };
 
-const FootballIcon = ({ className = 'w-6 h-6' }: { className?: string }) => (
+/** Biểu tượng chung cho nguồn video ngoài, không dùng nhãn hiệu của họ */
+const ExternalTvIcon = ({ className = 'w-6 h-6' }: { className?: string }) => (
   <svg viewBox="0 0 24 24" className={className} fill="currentColor" aria-hidden>
-    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 2c1.78 0 3.42.58 4.77 1.56L14.7 8.13a2.98 2.98 0 0 0-5.4 0L7.23 5.56C8.58 4.58 10.22 4 12 4zm-6.84 3.73 2.87 2.08a2.98 2.98 0 0 0-1.04 3.21l-3.32.96c-.44-1.22-.67-2.55-.67-3.98 0-.8.08-1.58.23-2.33zM4.6 15.65l3.32-.96a3 3 0 0 0 2.18 2.18v3.46C7.94 19.8 5.86 18.06 4.6 15.65zm9.5 3.68v-3.46a3 3 0 0 0 2.18-2.18l3.32.96c-1.26 2.41-3.34 4.15-5.5 4.68zm5.24-5.35-3.32-.96a2.98 2.98 0 0 0-1.04-3.21l2.87-2.08c.15.75.23 1.53.23 2.33 0 1.43-.23 2.76-.67 3.98z"/>
+    <path d="M8.3 2.3 11 5h2l2.7-2.7 1.06 1.06L15.1 5H19a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h3.9L7.24 3.36 8.3 2.3zM5 6.5a.5.5 0 0 0-.5.5v11c0 .28.22.5.5.5h14a.5.5 0 0 0 .5-.5V7a.5.5 0 0 0-.5-.5H5zm2.5 2.75h1.5v2h-1.5v-2zm7.5 0h1.5v2H15v-2zm-5 4h4v1.5h-4v-1.5z" />
   </svg>
 );
 
 const MAIN: Item[] = [
   { href: '/', label: 'Trang chủ', icon: HomeIcon },
-  { href: '/xoilac', label: 'Bóng đá Xoilac', icon: FootballIcon },
+  { href: '/bili', label: 'Bilibili', icon: ExternalTvIcon },
   { href: '/shorts', label: 'Shorts', icon: ShortsIcon },
   { href: '/?tab=trending', label: 'Thịnh hành', icon: FireIcon },
   { href: '/?tab=music', label: 'Âm nhạc', icon: SubsIcon },

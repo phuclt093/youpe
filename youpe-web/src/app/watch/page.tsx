@@ -14,7 +14,7 @@ import SaveToPlaylist from '@/components/SaveToPlaylist';
 import LiveChat from '@/components/LiveChat';
 import Description from '@/components/Description';
 import SubscribeButton from '@/components/SubscribeButton';
-import PlaylistPanel, { recoverListFor, usePlaylistQueue } from '@/components/PlaylistPanel';
+import PlaylistPanel, { biliSeasonList, recoverListFor, usePlaylistQueue } from '@/components/PlaylistPanel';
 import type { VideoDetail, VideoItem } from '@/lib/types';
 
 export default function WatchPage() {
@@ -23,7 +23,7 @@ export default function WatchPage() {
   const [data, setData] = useState<VideoDetail | null>(null);
   const [err, setErr] = useState('');
   const [theater, setTheater] = useState(false);
-  const { play } = usePlayer();
+  const { play, current: playing, close: closePlayer } = usePlayer();
   const [expanded, setExpanded] = useState(false);
   const [liked, setLiked] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -48,7 +48,8 @@ export default function WatchPage() {
     setRecovered(searchParams.get('list') ? '' : recoverListFor(id));
   }, [id, searchParams]);
 
-  const listId = searchParams.get('list') || recovered;
+  // Tập phim Bilibili: tự hiện các tập còn lại của phần đó, như trên bilibili.tv
+  const listId = searchParams.get('list') || recovered || biliSeasonList(id);
   const queue = usePlaylistQueue(listId);
   const isXoilac = id.startsWith('xl_') || sourceParam === 'xoilac';
 
@@ -92,6 +93,21 @@ export default function WatchPage() {
             captions: [],
             storyboard: null,
           });
+        })
+        .catch((e) => setErr(String(e)));
+    } else if (/^bili_p_\d+$/.test(id)) {
+      /*
+        Đường dẫn tới cả một phần phim Bilibili, chưa chọn tập (thẻ kết quả tìm kiếm
+        hay trỏ kiểu này). yt-dlp gặp nó sẽ trả về danh sách chứ không phải video,
+        nên tra danh sách tập rồi chuyển thẳng sang tập đầu.
+      */
+      const season = id.slice(7);
+      fetch(`/api/bili/season/${season}`)
+        .then((r) => r.json())
+        .then((j) => {
+          const first = j.episodes?.[0]?.id;
+          if (first) router.replace(`/watch?v=${first}&list=bili:${season}`);
+          else setErr('Không lấy được danh sách tập của phần phim này.');
         })
         .catch((e) => setErr(String(e)));
     } else {
@@ -227,6 +243,20 @@ export default function WatchPage() {
     author: { id: d.channel.id, name: d.channel.name, avatar: d.channel.avatar, verified: d.channel.verified },
   });
 
+  /*
+    Mở video mới mà hỏng thì dừng video cũ đang chạy ở khung nhỏ.
+
+    Trước đây bấm sang tập 8 (cần đăng nhập) thì trang báo lỗi, còn tập 3 vừa xem
+    vẫn phát tiếp ở góc — nhìn như app đang phát nhầm tập. Người xem đã bấm sang
+    video khác tức là muốn bỏ video cũ, y như YouTube.
+  */
+  useEffect(() => {
+    if (err && playing && playing.videoId !== id) closePlayer();
+  }, [err, playing, id, closePlayer]);
+
+  const needsBiliLogin = err.includes('BILI_LOGIN');
+  const errText = err.replace(/^(yt-dlp:\s*)?BILI_LOGIN\s*/, '');
+
   if (!id) return <p className="p-10 text-center text-yt-sub">Thiếu ID video.</p>;
 
   return (
@@ -236,7 +266,19 @@ export default function WatchPage() {
         <div className={theater ? '' : 'min-w-0 flex-1 xl:max-w-[1280px]'}>
           {err ? (
             <div className="aspect-video grid place-items-center rounded-xl bg-yt-elev px-6 text-center">
-              <p className="text-sm text-yt-sub">Không phát được video: {err}</p>
+              <div className="max-w-lg">
+                <p className="text-sm text-yt-sub">
+                  {needsBiliLogin ? errText : `Không phát được video: ${errText}`}
+                </p>
+                {needsBiliLogin && (
+                  <Link
+                    href="/bili?setup=1"
+                    className="mt-4 inline-block rounded-full bg-yt-text px-4 py-2 text-sm font-medium text-yt-bg hover:bg-yt-text/90"
+                  >
+                    Xem cách đăng nhập Bilibili
+                  </Link>
+                )}
+              </div>
             </div>
           ) : data ? (
             <PlayerSlot />

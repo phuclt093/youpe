@@ -49,10 +49,10 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       };
       return NextResponse.json(detail);
     } catch (e: any) {
-      return NextResponse.json(
-        { error: e?.message ?? 'không mở được video Bilibili' },
-        { status: 200 }
-      );
+      // resolveStreams ghép lỗi dạng "yt-dlp: <lời giải thích>" — bỏ phần tên nguồn
+      // đi, người xem chỉ cần câu giải thích
+      const msg = String(e?.message ?? 'không mở được video Bilibili').replace(/^yt-dlp:\s*/, '');
+      return NextResponse.json({ error: msg }, { status: 200 });
     }
   }
 

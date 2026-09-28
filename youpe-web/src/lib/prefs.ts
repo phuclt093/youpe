@@ -22,6 +22,8 @@ export type Prefs = {
    * video mới phát bình thường trên trang, cửa sổ nổi tự đóng.
    */
   keepPipOnVideoChange: boolean;
+  /** Trộn phim Bilibili vào tab "Tất cả" của trang chủ, có nhãn nhận biết */
+  mixBilibili: boolean;
 };
 
 const DEFAULTS: Prefs = {
@@ -33,6 +35,7 @@ const DEFAULTS: Prefs = {
   miniOnLeave: true,
   hoverPreview: true,
   keepPipOnVideoChange: true,
+  mixBilibili: true,
 };
 
 const KEYS: Record<keyof Prefs, string> = {
@@ -44,6 +47,7 @@ const KEYS: Record<keyof Prefs, string> = {
   miniOnLeave: 'youpe.miniOnLeave',
   hoverPreview: 'youpe.hoverPreview',
   keepPipOnVideoChange: 'youpe.keepPipOnVideoChange',
+  mixBilibili: 'youpe.mixBilibili',
 };
 
 const EVENT = 'youpe-prefs';
@@ -68,6 +72,7 @@ export function getPrefs(): Prefs {
     miniOnLeave: bool(KEYS.miniOnLeave, DEFAULTS.miniOnLeave),
     hoverPreview: bool(KEYS.hoverPreview, DEFAULTS.hoverPreview),
     keepPipOnVideoChange: bool(KEYS.keepPipOnVideoChange, DEFAULTS.keepPipOnVideoChange),
+    mixBilibili: bool(KEYS.mixBilibili, DEFAULTS.mixBilibili),
   };
 }
 

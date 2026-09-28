@@ -62,7 +62,7 @@ const GROUPS: Group[] = [
         kind: 'toggle',
         key: 'miniOnLeave',
         label: 'Thu nhỏ vào góc khi rời trang xem',
-        hint: 'Chuyển sang trang khác thì video thu nhỏ vào góc dưới phải ngay trong app và phát tiếp, thay vì dừng hẳn. Bấm X trên khung đó là tắt hẳn. Muốn tách ra thành cửa sổ nổi riêng của hệ điều hành thì bấm nút cửa sổ nổi trên thanh điều khiển (phím I).',
+        hint: 'Chuyển sang trang khác thì video thu nhỏ vào góc dưới phải ngay trong app và phát tiếp, thay vì dừng hẳn. Bấm X trên khung đó là tắt hẳn. Nút thu nhỏ trên thanh điều khiển (phím I) làm việc này ngay lập tức. Muốn tách ra thành cửa sổ nổi riêng của hệ điều hành thì dùng nút cửa sổ nổi bên cạnh.',
       },
       {
         kind: 'toggle',
@@ -88,6 +88,12 @@ const GROUPS: Group[] = [
         key: 'hoverPreview',
         label: 'Xem trước khi rê chuột',
         hint: 'Rê chuột lên thumbnail và giữ khoảng một giây thì phát thử đoạn video, không tiếng. Dùng luồng thấp nhất nhưng vẫn tốn dữ liệu — tắt nếu mạng yếu.',
+      },
+      {
+        kind: 'toggle',
+        key: 'mixBilibili',
+        label: 'Trộn phim Bilibili vào trang chủ',
+        hint: 'Tab "Tất cả" xen thêm phim từ Bilibili.tv, cứ vài video YouTube lại có một phim, có nhãn Bilibili trên ảnh bìa để nhận ra. Tắt đi thì trang chủ chỉ còn YouTube; tab Bilibili riêng vẫn dùng bình thường.',
       },
       {
         kind: 'toggle',

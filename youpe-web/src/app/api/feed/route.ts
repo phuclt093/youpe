@@ -37,10 +37,17 @@ export async function GET(req: NextRequest) {
     const yt: any = await getYT();
 
     /* ---------- nạp thêm ---------- */
-    if (more) {
-      const prev = getCursor(cursorKey);
-      if (!prev?.getContinuation) return NextResponse.json({ videos: [], done: true });
+    /*
+      Không có con trỏ thì KHÔNG trả "hết" — rơi xuống nạp lần đầu để tạo con trỏ.
 
+      Tab "Tất cả" nạp phần đầu qua /api/home (feed cá nhân hoá), nên lần cuộn đầu
+      tiên tới đây chưa hề có con trỏ nào cho `home`. Trước đây chỗ này trả
+      `done: true` ngay, nên cuộn xuống là hiện "Hết rồi" chỉ sau vài hàng video.
+      Con trỏ cũng hết hạn sau 10 phút — để trang mở lâu rồi cuộn tiếp cũng dính.
+      Phía trình duyệt tự lọc video trùng, nên trả lại vài video đã có cũng không sao.
+    */
+    const prev = more ? getCursor(cursorKey) : null;
+    if (more && prev?.getContinuation) {
       try {
         const next = await prev.getContinuation();
         const videos = videosFrom(next, 48);

@@ -183,7 +183,7 @@ export default function Header({ onToggleMenu }: { onToggleMenu: () => void }) {
 
       {/* phải */}
       <div className={`flex items-center gap-2 ${mobileSearch ? 'hidden' : 'flex'}`}>
-        {/* Switcher Nguồn Nhanh (YouTube <-> Xoilac) */}
+        {/* Chuyển nguồn nhanh: YouTube / Bilibili */}
         <div className="hidden lg:flex items-center rounded-full bg-yt-chip p-1 border border-yt-border text-xs font-medium mr-1">
           <button
             onClick={() => router.push('/')}
@@ -194,12 +194,12 @@ export default function Header({ onToggleMenu }: { onToggleMenu: () => void }) {
             YouTube
           </button>
           <button
-            onClick={() => router.push('/xoilac')}
+            onClick={() => router.push('/bili')}
             className="flex items-center gap-1.5 rounded-full px-3 py-1 text-yt-text hover:bg-yt-hover transition"
-            title="Chuyển sang nguồn Xoilac Trực Tiếp Bóng Đá"
+            title="Chuyển sang nguồn Bilibili"
           >
-            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            Xoilac
+            <span className="h-2 w-2 rounded-full bg-sky-400"></span>
+            Bilibili
           </button>
         </div>
 
