@@ -6,6 +6,26 @@ import Logo from './Logo';
 import AuthMenu from './AuthMenu';
 import NavButtons from './NavButtons';
 import { MenuIcon, SearchIcon, MicIcon, CloseIcon, HistoryIcon } from './Icons';
+import { biliIdFromUrl } from '@/lib/bili';
+
+/** Link YouTube (watch, youtu.be, shorts, embed) → id; không phải thì trả '' */
+function youtubeIdFromUrl(raw: string): string {
+  let u: URL;
+  try {
+    u = new URL(raw.trim());
+  } catch {
+    return '';
+  }
+
+  const ok = (v?: string | null) => (v && /^[\w-]{11}$/.test(v) ? v : '');
+
+  if (/^youtu\.be$/i.test(u.hostname)) return ok(u.pathname.slice(1));
+  if (!/(^|\.)youtube(-nocookie)?\.com$/i.test(u.hostname)) return '';
+
+  const seg = u.pathname.split('/').filter(Boolean);
+  if (seg[0] === 'shorts' || seg[0] === 'embed' || seg[0] === 'live') return ok(seg[1]);
+  return ok(u.searchParams.get('v'));
+}
 
 export default function Header({ onToggleMenu }: { onToggleMenu: () => void }) {
   const router = useRouter();
@@ -66,6 +86,17 @@ export default function Header({ onToggleMenu }: { onToggleMenu: () => void }) {
     if (!t) return;
     setOpenSug(false);
     setMobileSearch(false);
+
+    /*
+      Dán nguyên đường dẫn thì mở thẳng video, đừng đem cả cái URL đi tìm kiếm.
+      Hiện nhận bilibili.tv và các dạng link YouTube quen thuộc.
+    */
+    const direct = biliIdFromUrl(t) || youtubeIdFromUrl(t);
+    if (direct) {
+      router.push(`/watch?v=${direct}`);
+      return;
+    }
+
     router.push(`/results?q=${encodeURIComponent(t)}`);
   };
 

@@ -32,6 +32,15 @@ export type PlayingVideo = {
   poster?: string;
   captions?: { label: string; lang: string; url: string }[];
   related: EndCardItem[];
+  /**
+   * Danh sách phát đang xem (`?list=`), nếu có.
+   *
+   * Mọi lối chuyển video do chính trình phát gây ra — thẻ gợi ý cuối video, tự phát
+   * video kế tiếp, nút "bài sau" trên tai nghe, nút phóng to của khung nhỏ — đều phải
+   * mang theo giá trị này. Thiếu nó là rời khỏi danh sách phát ngay lần chuyển đầu
+   * tiên, và cột phải mất luôn hàng chờ.
+   */
+  listId?: string;
 };
 
 /**
@@ -77,6 +86,11 @@ const PlayerCtx = createContext<Ctx>({
 });
 
 export const usePlayer = () => useContext(PlayerCtx);
+
+/** Link tới trang xem, giữ nguyên danh sách phát đang mở */
+function watchHref(videoId: string, listId?: string) {
+  return `/watch?v=${videoId}${listId ? `&list=${encodeURIComponent(listId)}` : ''}`;
+}
 
 /* ------------------------------------------------------------------ */
 
@@ -607,7 +621,7 @@ export default function PlayerHost({ children }: { children: React.ReactNode }) 
       // Không có "video trước" theo nghĩa danh sách phát, nên nút lùi dùng để tua.
       // Có nút mà bấm không ra gì thì tệ hơn là không có nút.
       ['previoustrack', () => apiRef.current?.seekBy(-10)],
-      ['nexttrack', nextId ? () => router.push(`/watch?v=${nextId}`) : null],
+      ['nexttrack', nextId ? () => router.push(watchHref(nextId, current.listId)) : null],
     ];
 
     for (const [action, fn] of handlers) {
@@ -720,7 +734,7 @@ export default function PlayerHost({ children }: { children: React.ReactNode }) 
                 channel={current.channelName}
                 onExpand={() => {
                   if (mode === 'pip') closePip();
-                  router.push(`/watch?v=${current.videoId}`);
+                  router.push(watchHref(current.videoId, current.listId));
                   window.focus();
                 }}
                 onClose={close}
@@ -736,7 +750,7 @@ export default function PlayerHost({ children }: { children: React.ReactNode }) 
               theater={mode === 'full' && theater}
               onToggleTheater={() => mode === 'full' && setTheater((t) => !t)}
               related={current.related}
-              onPickVideo={(next) => router.push(`/watch?v=${next}`)}
+              onPickVideo={(next) => router.push(watchHref(next, current.listId))}
               compact={mode !== 'full'}
               onMini={mode === 'full' ? openMini : undefined}
               onMinimize={mode === 'full' ? () => openPip(true) : undefined}

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { resolveStreams } from '@/lib/sources';
+import { isBiliId } from '@/lib/bili';
 import type { PipedFormat } from '@/lib/piped';
 
 export const runtime = 'nodejs';
@@ -59,7 +60,10 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     // DASH chỉ dựng được khi format có sẵn init/index range.
     // yt-dlp không trả các range này, nên khi nguồn là yt-dlp thì đi thẳng chế độ 2 luồng.
     // Live luôn đi HLS; có HLS rồi thì không dựng DASH nữa
+    // `/api/manifest` chỉ biết hỏi InnerTube và Piped, tức là chỉ YouTube — đừng
+    // trỏ nguồn khác vào đó.
     const dashReady =
+      !isBiliId(id) &&
       !result.isLive &&
       !result.hls &&
       result.formats.some(
@@ -145,6 +149,9 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       filters: { h264: wantH264, maxHeight: maxHeight || null },
       dash: dashReady ? `/api/manifest/${id}` : null,
       title: result.title,
+      description: result.description ?? '',
+      uploader: result.uploader ?? '',
+      thumbnail: result.thumbnail ?? '',
       duration: result.durationSec,
       isLive: result.isLive,
       hls: result.hls ? proxy(result.hls, result.hlsHeaders) : null,

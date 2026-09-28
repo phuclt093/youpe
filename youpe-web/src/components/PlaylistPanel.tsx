@@ -34,6 +34,42 @@ const LOCAL = 'my:';
  */
 const memo = new Map<string, Queue>();
 
+/**
+ * Danh sách đang mở gần nhất, ghi vào sessionStorage.
+ *
+ * Dùng để nhận lại hàng chờ khi quay về một video vẫn nằm trong danh sách nhưng
+ * đường dẫn không còn `?list=` — ví dụ bấm nút Back của trình duyệt về một mục
+ * lịch sử cũ, hay bấm một video trong phần gợi ý mà video đó có trong danh sách.
+ * Không có cái này thì hàng chờ biến mất giữa chừng và không cách nào lấy lại
+ * ngoài việc mở lại từ trang danh sách phát.
+ */
+const LAST_KEY = 'youpe.lastQueue';
+
+function rememberQueue(q: Queue) {
+  if (!q.videos.length) return;
+  try {
+    sessionStorage.setItem(
+      LAST_KEY,
+      JSON.stringify({ id: q.id, ids: q.videos.map((v) => v.id) })
+    );
+  } catch {
+    /* hết chỗ hoặc bị chặn — chỉ mất phần nhận lại */
+  }
+}
+
+/** Danh sách gần nhất có chứa video này không; có thì trả về id danh sách */
+export function recoverListFor(videoId: string): string {
+  if (!videoId || typeof window === 'undefined') return '';
+  try {
+    const raw = sessionStorage.getItem(LAST_KEY);
+    if (!raw) return '';
+    const j = JSON.parse(raw) as { id?: string; ids?: string[] };
+    return j?.id && Array.isArray(j.ids) && j.ids.includes(videoId) ? j.id : '';
+  } catch {
+    return '';
+  }
+}
+
 export function usePlaylistQueue(listId: string): Queue | null {
   const [q, setQ] = useState<Queue | null>(null);
 
@@ -46,14 +82,16 @@ export function usePlaylistQueue(listId: string): Queue | null {
     if (listId.startsWith(LOCAL)) {
       const read = () => {
         const p = pl.getPlaylist(listId.slice(LOCAL.length));
-        setQ({
+        const q: Queue = {
           id: listId,
           title: p?.name ?? 'Danh sách phát',
           author: 'Danh sách của bạn',
           videos: p?.videos ?? [],
           loading: false,
           error: p ? '' : 'Không tìm thấy danh sách này trong máy.',
-        });
+        };
+        rememberQueue(q);
+        setQ(q);
       };
       read();
       return pl.onPlaylistsChange(read);
@@ -61,6 +99,7 @@ export function usePlaylistQueue(listId: string): Queue | null {
 
     const cached = memo.get(listId);
     if (cached) {
+      rememberQueue(cached);
       setQ(cached);
       return;
     }
@@ -80,7 +119,10 @@ export function usePlaylistQueue(listId: string): Queue | null {
           loading: false,
           error: j.error ?? '',
         };
-        if (!q.error && q.videos.length) memo.set(listId, q);
+        if (!q.error && q.videos.length) {
+          memo.set(listId, q);
+          rememberQueue(q);
+        }
         setQ(q);
       })
       .catch((e) => {

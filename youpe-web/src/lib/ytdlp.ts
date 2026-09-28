@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { extractViaWorker, workerAvailable } from './ytdlp-worker';
+import { biliUrlFromId, isBiliId } from './bili';
 import type { PipedFormat, PipedResult } from './piped';
 
 const run = promisify(execFile);
@@ -123,11 +124,14 @@ function ytdlpArgs(id: string, strategy: Strategy): string[] {
    *
    * Chạy `npm run probe -- <videoId>` để biết đặt cái gì.
    */
-  if (strategy === 'all') {
-    args.push('--extractor-args', 'youtube:player_client=all');
-  } else {
-    const pinned = process.env.YTDLP_PLAYER_CLIENT?.trim();
-    if (pinned) args.push('--extractor-args', `youtube:player_client=${pinned}`);
+  // Tham số player client chỉ có nghĩa với YouTube; gắn vào nguồn khác là vô ích
+  if (!isBiliId(id)) {
+    if (strategy === 'all') {
+      args.push('--extractor-args', 'youtube:player_client=all');
+    } else {
+      const pinned = process.env.YTDLP_PLAYER_CLIENT?.trim();
+      if (pinned) args.push('--extractor-args', `youtube:player_client=${pinned}`);
+    }
   }
 
   const cookies = process.env.YTDLP_COOKIES_FROM_BROWSER?.trim();
@@ -142,7 +146,7 @@ function ytdlpArgs(id: string, strategy: Strategy): string[] {
   const extra = process.env.YTDLP_ARGS?.trim();
   if (extra) args.push(...extra.split(/\s+/).filter(Boolean));
 
-  args.push(`https://www.youtube.com/watch?v=${id}`);
+  args.push(biliUrlFromId(id) || `https://www.youtube.com/watch?v=${id}`);
   return args;
 }
 
@@ -342,7 +346,8 @@ export async function getFromYtdlp(id: string): Promise<PipedResult> {
    */
   let j: any = null;
 
-  if (await workerAvailable()) {
+  // Tiến trình worker dựng cứng đường dẫn YouTube, nguồn khác phải đi đường exe
+  if (!isBiliId(id) && (await workerAvailable())) {
     const t0 = Date.now();
     try {
       j = await extractViaWorker(id, preferred === 'all');
@@ -451,8 +456,11 @@ export async function getFromYtdlp(id: string): Promise<PipedResult> {
   const isLive = !!(j.is_live || j.live_status === 'is_live');
 
   return {
-    source: 'yt-dlp',
+    source: isBiliId(id) ? 'yt-dlp:bilibili' : 'yt-dlp',
     title: j.title ?? '',
+    description: j.description ?? '',
+    uploader: j.uploader ?? j.channel ?? j.series ?? '',
+    thumbnail: j.thumbnail ?? '',
     durationSec: num(j.duration) ?? 0,
     isLive,
     hls,

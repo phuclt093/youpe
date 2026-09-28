@@ -65,6 +65,10 @@ export function keepOriginalAudio<T extends PipedFormat>(formats: T[]): T[] {
 export type PipedResult = {
   source: string;
   title: string;
+  /** Có ở nguồn ngoài YouTube, nơi metadata cũng do yt-dlp trả về luôn */
+  description?: string;
+  uploader?: string;
+  thumbnail?: string;
   durationSec: number;
   isLive: boolean;
   hls?: string;

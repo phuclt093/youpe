@@ -5,6 +5,7 @@ import { getFromFallback, keepOriginalAudio } from './piped';
 import { getFromYtdlp } from './ytdlp';
 import { warmWorker } from './ytdlp-worker';
 import { getPlayableInfo } from './player';
+import { isBiliId } from './bili';
 
 /** Đổi VideoInfo của youtubei.js sang cùng shape với các nguồn khác */
 async function fromInnertube(id: string): Promise<PipedResult> {
@@ -224,11 +225,17 @@ export async function resolveStreams(
 async function resolveUncached(id: string): Promise<ResolveOutcome> {
   const tried: { source: string; note: string }[] = [];
 
-  const steps: { source: string; run: () => Promise<PipedResult> }[] = [
-    { source: 'yt-dlp', run: () => getFromYtdlp(id) },
-    { source: 'innertube', run: () => fromInnertube(id) },
-    { source: 'piped/invidious', run: async () => (await getFromFallback(id)).result },
-  ];
+  /*
+    InnerTube và Piped/Invidious chỉ biết YouTube. Với id của nguồn khác (bilibili…)
+    thì chạy chúng chỉ tốn thêm vài giây rồi cũng hỏng, nên bỏ hẳn.
+  */
+  const steps: { source: string; run: () => Promise<PipedResult> }[] = isBiliId(id)
+    ? [{ source: 'yt-dlp', run: () => getFromYtdlp(id) }]
+    : [
+        { source: 'yt-dlp', run: () => getFromYtdlp(id) },
+        { source: 'innertube', run: () => fromInnertube(id) },
+        { source: 'piped/invidious', run: async () => (await getFromFallback(id)).result },
+      ];
 
   if (preferred) {
     const i = steps.findIndex((s) => s.source === preferred);

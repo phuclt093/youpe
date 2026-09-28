@@ -14,7 +14,7 @@ import SaveToPlaylist from '@/components/SaveToPlaylist';
 import LiveChat from '@/components/LiveChat';
 import Description from '@/components/Description';
 import SubscribeButton from '@/components/SubscribeButton';
-import PlaylistPanel, { usePlaylistQueue } from '@/components/PlaylistPanel';
+import PlaylistPanel, { recoverListFor, usePlaylistQueue } from '@/components/PlaylistPanel';
 import type { VideoDetail, VideoItem } from '@/lib/types';
 
 export default function WatchPage() {
@@ -36,8 +36,19 @@ export default function WatchPage() {
 
   const searchParams = useSearchParams();
   const sourceParam = searchParams.get('source');
-  // ?list=... → đang xem trong một danh sách phát
-  const listId = searchParams.get('list') ?? '';
+  /*
+    ?list=... → đang xem trong một danh sách phát.
+
+    Đường dẫn không có `list` thì hỏi lại danh sách vừa mở gần nhất: video này vẫn
+    nằm trong đó thì coi như chưa rời danh sách. Nhờ vậy bấm Back, hay bấm một video
+    trong phần gợi ý mà nó có sẵn trong danh sách, hàng chờ vẫn còn nguyên.
+  */
+  const [recovered, setRecovered] = useState('');
+  useEffect(() => {
+    setRecovered(searchParams.get('list') ? '' : recoverListFor(id));
+  }, [id, searchParams]);
+
+  const listId = searchParams.get('list') || recovered;
   const queue = usePlaylistQueue(listId);
   const isXoilac = id.startsWith('xl_') || sourceParam === 'xoilac';
 
@@ -128,8 +139,9 @@ export default function WatchPage() {
       videoId: data.id,
       title: data.title,
       channelName: data.channel.name,
-      poster: `https://i.ytimg.com/vi/${data.id}/maxresdefault.jpg`,
+      poster: data.thumbnail || `https://i.ytimg.com/vi/${data.id}/maxresdefault.jpg`,
       captions: data.captions,
+      listId: listId || undefined,
       related: playerList.map((v) => ({
         id: v.id,
         title: v.title,
@@ -180,7 +192,7 @@ export default function WatchPage() {
     const item: VideoItem = {
       id: data.id,
       title: data.title,
-      thumbnail: `https://i.ytimg.com/vi/${data.id}/hqdefault.jpg`,
+      thumbnail: data.thumbnail || `https://i.ytimg.com/vi/${data.id}/hqdefault.jpg`,
       durationSec: data.durationSec,
       durationText: '',
       viewsText: data.viewsText,
@@ -206,7 +218,7 @@ export default function WatchPage() {
   const asItem = (d: VideoDetail): VideoItem => ({
     id: d.id,
     title: d.title,
-    thumbnail: `https://i.ytimg.com/vi/${d.id}/hqdefault.jpg`,
+    thumbnail: d.thumbnail || `https://i.ytimg.com/vi/${d.id}/hqdefault.jpg`,
     durationSec: d.durationSec,
     durationText: '',
     viewsText: d.viewsText,

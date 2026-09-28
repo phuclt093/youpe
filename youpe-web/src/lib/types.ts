@@ -69,4 +69,6 @@ export type VideoDetail = {
   manifestType: 'dash' | 'hls';
   captions: { label: string; lang: string; url: string }[];
   storyboard: string | null;
+  /** Ảnh bìa — chỉ nguồn ngoài YouTube mới cần, YouTube suy ra được từ id */
+  thumbnail?: string;
 };

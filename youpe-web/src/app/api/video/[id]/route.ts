@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getYT, collectVideos, txt, bestThumb } from '@/lib/innertube';
 import type { VideoDetail } from '@/lib/types';
-import { warmStreams } from '@/lib/sources';
+import { resolveStreams, warmStreams } from '@/lib/sources';
+import { isBiliId } from '@/lib/bili';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -11,6 +12,49 @@ const CLIENT = (process.env.YT_CLIENT || 'IOS') as any;
 
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
+
+  /*
+    Bilibili.tv: InnerTube không biết id này. Metadata do chính yt-dlp trả về cùng
+    lúc với danh sách luồng, nên chỉ cần gọi resolveStreams (có cache sẵn — lát nữa
+    trình phát hỏi /api/streams là lấy ngay bản này, không chạy yt-dlp lần hai).
+  */
+  if (isBiliId(id)) {
+    try {
+      const { result } = await resolveStreams(id);
+      const detail: VideoDetail = {
+        id,
+        title: result.title,
+        description: result.description ?? '',
+        views: null,
+        viewsText: '',
+        likes: null,
+        likesText: '',
+        publishedText: 'Bilibili.tv',
+        isLive: result.isLive,
+        durationSec: result.durationSec || null,
+        keywords: [],
+        channel: {
+          id: '',
+          name: result.uploader || 'Bilibili.tv',
+          avatar: '',
+          subsText: 'Bilibili.tv',
+          verified: false,
+        },
+        related: [],
+        manifest: `/api/manifest/${id}`,
+        manifestType: 'dash',
+        captions: [],
+        storyboard: null,
+        thumbnail: result.thumbnail ?? '',
+      };
+      return NextResponse.json(detail);
+    } catch (e: any) {
+      return NextResponse.json(
+        { error: e?.message ?? 'không mở được video Bilibili' },
+        { status: 200 }
+      );
+    }
+  }
 
   // chạy nền song song với việc lấy metadata, để lúc player hỏi thì đã có sẵn
   warmStreams(id);

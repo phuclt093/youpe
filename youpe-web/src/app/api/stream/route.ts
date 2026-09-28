@@ -17,6 +17,17 @@ const ALLOWED_PATTERNS = [
   /^piped/i,
   /^pipedproxy/i,
   /(^|\.)invidious\.[a-z.]+$/i,
+  /*
+    Bilibili.tv: trang, CDN video và CDN ảnh. akamaized.net là CDN dùng chung của
+    nhiều bên — bilibili phát qua đó nên phải mở, nhưng nhớ rằng nó rộng hơn hẳn
+    mấy dòng trên: proxy sẽ chịu tải hộ bất cứ host akamaized nào được yêu cầu.
+  */
+  /(^|\.)bilibili\.(tv|com)$/i,
+  /(^|\.)bilivideo\.(com|cn)$/i,
+  /(^|\.)biliapi\.net$/i,
+  /(^|\.)bstarstatic\.com$/i,
+  /(^|\.)hdslb\.com$/i,
+  /(^|\.)akamaized\.net$/i,
 ];
 
 function isAllowed(hostname: string): boolean {
