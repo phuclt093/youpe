@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import type { VideoItem } from '@/lib/types';
+import { isPinned, onPinsChange, togglePin } from '@/lib/biliPins';
 import { formatDuration, viPublished } from '@/lib/format';
 import { VerifiedIcon } from './Icons';
 import {
@@ -161,6 +162,8 @@ export function Thumb({ v, hovered = false }: { v: VideoItem; hovered?: boolean 
         />
       )}
 
+      {v.id.startsWith('bili_') && <PinButton v={v} />}
+
       {/* vạch đỏ báo đã xem tới đâu */}
       {ratio > 0.01 && (
         <div className="absolute inset-x-0 bottom-0 h-1 bg-black/40">
@@ -178,9 +181,61 @@ export function Thumb({ v, hovered = false }: { v: VideoItem; hovered?: boolean 
  * thẻ YouTube xung quanh. Đặt "● Bilibili" vào đó vừa lấp chỗ trống vừa cho biết
  * nguồn — cùng kiểu chấm màu + tên với nút chuyển nguồn trên thanh tiêu đề.
  */
-const isBili = (id: string) => id.startsWith('bili_');
+export const isBili = (id: string) => id.startsWith('bili_');
 
-function SourceLine({ v, small = false }: { v: VideoItem; small?: boolean }) {
+/** Biểu tượng ghim — vẽ đặc khi đã ghim, vẽ viền khi chưa */
+export function PinIcon({ filled, className = 'h-4 w-4' }: { filled: boolean; className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="currentColor" aria-hidden>
+      {filled ? (
+        <path d="M16 3a1 1 0 0 1 .7 1.7L15.4 6l1.9 5.1 1.4 1.4a1 1 0 0 1-.7 1.7H13v5.3l-1 1.5-1-1.5v-5.3H6a1 1 0 0 1-.7-1.7l1.4-1.4L8.6 6 7.3 4.7A1 1 0 0 1 8 3h8z" />
+      ) : (
+        <path d="M16 3a1 1 0 0 1 .7 1.7L15.4 6l1.9 5.1 1.4 1.4a1 1 0 0 1-.7 1.7H13v5.3l-1 1.5-1-1.5v-5.3H6a1 1 0 0 1-.7-1.7l1.4-1.4L8.6 6 7.3 4.7A1 1 0 0 1 8 3h8zm-2.4 2h-3.2l.8.8a1 1 0 0 1 .2 1L9.2 12.2l-.8.8h7.2l-.8-.8-2.2-5.4a1 1 0 0 1 .2-1l.8-.8z" />
+      )}
+    </svg>
+  );
+}
+
+/**
+ * Nút ghim trên ảnh bìa phim Bilibili.
+ *
+ * Nằm trong thẻ <Link>, nên phải chặn cả preventDefault lẫn stopPropagation —
+ * thiếu một trong hai là bấm ghim xong bị đưa luôn sang trang xem.
+ * Chưa ghim thì chỉ hiện khi rê chuột, để ảnh bìa không bị che; đã ghim thì luôn
+ * hiện, liếc lưới là biết phim nào đã ghim.
+ */
+function PinButton({ v }: { v: VideoItem }) {
+  const [on, setOn] = useState(false);
+
+  useEffect(() => {
+    const read = () => setOn(isPinned(v.id));
+    read();
+    return onPinsChange(read);
+  }, [v.id]);
+
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setOn(togglePin({ id: v.id, title: v.title, thumbnail: v.thumbnail, sub: v.viewsText }));
+      }}
+      title={on ? 'Bỏ ghim phim này' : 'Ghim phim này'}
+      aria-label={on ? 'Bỏ ghim' : 'Ghim'}
+      aria-pressed={on}
+      className={`absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full backdrop-blur-sm transition-opacity ${
+        on
+          ? 'bg-sky-500 text-white opacity-100'
+          : 'bg-black/60 text-white opacity-0 hover:bg-black/80 group-hover:opacity-100 focus-visible:opacity-100'
+      }`}
+    >
+      <PinIcon filled={on} />
+    </button>
+  );
+}
+
+export function SourceLine({ v, small = false }: { v: VideoItem; small?: boolean }) {
   return (
     <span className={`flex min-w-0 items-center gap-1.5 ${small ? 'text-xs' : 'text-[13px]'}`}>
       <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-sky-400" />

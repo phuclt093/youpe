@@ -5,7 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { PlayerSlot, usePlayer } from '@/components/PlayerHost';
 import Comments from '@/components/Comments';
-import VideoCard from '@/components/VideoCard';
+import VideoCard, { PinIcon } from '@/components/VideoCard';
+import { isPinned, onPinsChange, togglePin } from '@/lib/biliPins';
 import { LikeIcon, DislikeIcon, ShareIcon, ClockIcon, VerifiedIcon, MoreIcon } from '@/components/Icons';
 import { formatCount, viPublished } from '@/lib/format';
 import * as store from '@/lib/storage';
@@ -28,6 +29,7 @@ export default function WatchPage() {
   const [liked, setLiked] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
+  const [pinned, setPinned] = useState(false);
   const [related, setRelated] = useState<VideoItem[]>([]);
   const [mix, setMix] = useState<{ source: string; count: number }[]>([]);
   const [loadingRelated, setLoadingRelated] = useState(true);
@@ -257,6 +259,32 @@ export default function WatchPage() {
   const needsBiliLogin = err.includes('BILI_LOGIN');
   const errText = err.replace(/^(yt-dlp:\s*)?BILI_LOGIN\s*/, '');
 
+  /* ---------- ghim phim Bilibili ---------- */
+  const biliVideo = id.startsWith('bili_');
+  useEffect(() => {
+    if (!biliVideo) return;
+    const read = () => setPinned(isPinned(id));
+    read();
+    return onPinsChange(read);
+  }, [id, biliVideo]);
+
+  const onPin = () => {
+    if (!data) return;
+    /*
+      Ghim là ghim cả bộ phim, nên đặt tên theo bộ ("Link Click: Mùa 3") chứ không
+      theo tập ("Tập 8"). Tên bộ có sẵn ở khối danh sách tập bên phải.
+    */
+    const seriesTitle = id.startsWith('bili_p_') && queue?.title ? queue.title : data.title;
+    setPinned(
+      togglePin({
+        id,
+        title: seriesTitle,
+        thumbnail: data.thumbnail || '',
+        sub: queue?.videos.length ? `${queue.videos.length} tập` : '',
+      })
+    );
+  };
+
   if (!id) return <p className="p-10 text-center text-yt-sub">Thiếu ID video.</p>;
 
   return (
@@ -350,6 +378,19 @@ export default function WatchPage() {
                 >
                   <ShareIcon className="h-5 w-5" /> Chia sẻ
                 </button>
+
+                {biliVideo && (
+                  <button
+                    onClick={onPin}
+                    disabled={!data}
+                    title={pinned ? 'Bỏ ghim phim này' : 'Ghim cả bộ phim — lần sau mở lại đúng tập đang xem'}
+                    className={`flex shrink-0 items-center gap-2 rounded-full px-4 py-2 text-sm disabled:opacity-50 ${
+                      pinned ? 'bg-sky-500 text-white hover:bg-sky-600' : 'bg-yt-chip hover:bg-yt-chip2'
+                    }`}
+                  >
+                    <PinIcon filled={pinned} className="h-5 w-5" /> {pinned ? 'Đã ghim' : 'Ghim phim'}
+                  </button>
+                )}
 
                 <button
                   onClick={() => setSaveOpen(true)}

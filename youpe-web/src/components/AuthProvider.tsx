@@ -6,6 +6,7 @@ import {
 import * as store from '@/lib/storage';
 import { pullSubs, pushSubs } from '@/lib/subs';
 import { pullPlaylists, pushPlaylists } from '@/lib/playlists';
+import { pullPins, pushPins } from '@/lib/biliPins';
 import { apiFetch, onApiBaseChange } from '@/lib/api';
 
 export type User = { id: number; email: string; name: string };
@@ -59,12 +60,14 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       await store.pushAllToServer();
       await pushSubs();
       await pushPlaylists();
+      await pushPins();
     }
 
     await Promise.all([
       ...(['history', 'later', 'liked'] as const).map((k) => store.pullFromServer(k)),
       pullSubs(),
       pullPlaylists(),
+      pullPins(),
     ]);
   }, []);
 

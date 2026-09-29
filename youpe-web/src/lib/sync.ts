@@ -18,7 +18,7 @@ import { apiFetch } from './api';
 /** Bảng `library` chỉ cần mỗi `id` để làm khoá; phần còn lại nhét nguyên vào payload */
 export type Saved = { id: string } & Record<string, any>;
 
-export type ListName = 'history' | 'later' | 'liked' | 'playlists' | 'subs';
+export type ListName = 'history' | 'later' | 'liked' | 'playlists' | 'subs' | 'bilipins';
 
 let signedIn = false;
 export const setSignedIn = (v: boolean) => {

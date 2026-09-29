@@ -4,9 +4,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import VideoCard, { CardSkeleton } from '@/components/VideoCard';
 import Chips from '@/components/Chips';
-import { SearchIcon } from '@/components/Icons';
-import { biliIdFromUrl } from '@/lib/bili';
 import * as store from '@/lib/storage';
+import { getPins, onPinsChange, pinToItem } from '@/lib/biliPins';
 import type { VideoItem } from '@/lib/types';
 
 type Status = {
@@ -23,6 +22,7 @@ type Status = {
  */
 const CATS: { key: string; label: string; q: string }[] = [
   { key: 'home', label: 'Đề xuất', q: '' },
+  { key: 'pinned', label: 'Đã ghim', q: '' },
   { key: 'anime', label: 'Anime', q: 'anime' },
   { key: 'donghua', label: 'Hoạt hình Trung Quốc', q: 'hoạt hình trung quốc' },
   { key: 'tutien', label: 'Tu tiên', q: 'tu tiên' },
@@ -49,7 +49,6 @@ export default function BiliPage() {
   const q = sp.get('q') ?? '';
   const cat = sp.get('cat') ?? (q ? '' : 'home');
 
-  const [term, setTerm] = useState(q);
   const [items, setItems] = useState<VideoItem[]>([]);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -62,7 +61,13 @@ export default function BiliPage() {
   // đến từ nút "Xem cách đăng nhập Bilibili" trên trang xem thì mở sẵn hướng dẫn
   const [showSetup, setShowSetup] = useState(sp.get('setup') === '1');
 
-  useEffect(() => setTerm(q), [q]);
+  /* ---------- phim đã ghim ---------- */
+  const [pins, setPins] = useState<VideoItem[]>([]);
+  useEffect(() => {
+    const read = () => setPins(getPins().map(pinToItem));
+    read();
+    return onPinsChange(read);
+  }, []);
 
   /* ---------- tình trạng tài khoản ---------- */
   const check = useCallback(() => {
@@ -79,6 +84,9 @@ export default function BiliPage() {
   const activeCat = CATS.find((c) => c.key === cat);
   const query = q || activeCat?.q || '';
   const isHistory = cat === 'history' && !q;
+  const isPinned = cat === 'pinned' && !q;
+  /** Hai chip này đọc từ máy, không gọi mạng và không phân trang */
+  const isLocal = isHistory || isPinned;
 
   const urlFor = useCallback(
     (p: number) =>
@@ -95,8 +103,12 @@ export default function BiliPage() {
     setDone(false);
     setFailed(false);
 
-    if (isHistory) {
-      setItems(store.getList('history').filter((v) => v.id.startsWith('bili_')));
+    if (isLocal) {
+      setItems(
+        isHistory
+          ? store.getList('history').filter((v) => v.id.startsWith('bili_'))
+          : getPins().map(pinToItem)
+      );
       setDone(true);
       setLoading(false);
       return;
@@ -117,11 +129,16 @@ export default function BiliPage() {
     return () => {
       alive = false;
     };
-  }, [urlFor, isHistory]);
+  }, [urlFor, isHistory, isPinned, isLocal]);
+
+  // đang ở chip "Đã ghim" mà bỏ ghim một phim thì lưới cập nhật ngay
+  useEffect(() => {
+    if (isPinned) setItems(pins);
+  }, [isPinned, pins]);
 
   /* ---------- cuộn tới cuối thì tải trang kế ---------- */
   const loadMore = useCallback(() => {
-    if (loading || loadingMore || done || isHistory) return;
+    if (loading || loadingMore || done || isLocal) return;
     const next = page + 1;
     setLoadingMore(true);
     fetch(urlFor(next))
@@ -141,7 +158,7 @@ export default function BiliPage() {
       })
       .catch(() => setDone(true))
       .finally(() => setLoadingMore(false));
-  }, [loading, loadingMore, done, isHistory, page, urlFor]);
+  }, [loading, loadingMore, done, isLocal, page, urlFor]);
 
   const sentinel = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -155,16 +172,6 @@ export default function BiliPage() {
   }, [loadMore]);
 
   /* ---------- điều hướng ---------- */
-  const submit = () => {
-    const t = term.trim();
-    const direct = biliIdFromUrl(t);
-    if (direct) {
-      router.push(`/watch?v=${direct}`);
-      return;
-    }
-    router.push(t ? `${pathname}?q=${encodeURIComponent(t)}` : pathname);
-  };
-
   const pickCat = (key: string) =>
     router.push(key === 'home' ? pathname : `${pathname}?cat=${key}`);
 
@@ -172,28 +179,18 @@ export default function BiliPage() {
 
   return (
     <div className="px-4 pb-16 sm:px-6">
-      {/* ---- tìm kiếm + tình trạng tài khoản ---- */}
-      <div className="flex flex-wrap items-center gap-3 pt-1">
-        <div className="flex min-w-0 max-w-[640px] flex-1 overflow-hidden rounded-full border border-yt-border focus-within:border-yt-blue">
-          <input
-            value={term}
-            onChange={(e) => setTerm(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && submit()}
-            placeholder="Tìm trên Bilibili… (dán link cũng được)"
-            className="min-w-0 flex-1 bg-transparent px-4 py-2 text-sm outline-none"
-          />
-          <button
-            onClick={submit}
-            aria-label="Tìm"
-            className="grid w-14 place-items-center border-l border-yt-border bg-yt-chip hover:bg-yt-chip2"
-          >
-            <SearchIcon className="h-5 w-5" />
-          </button>
+      {/*
+        Không còn ô tìm kiếm riêng: khung tìm kiếm ở đầu trang tự chuyển sang tìm
+        trên Bilibili khi đang ở tab này. Nút tình trạng tài khoản dời xuống cuối
+        hàng chip cho gọn.
+      */}
+      <div className="flex items-center gap-3">
+        <div className="min-w-0 flex-1">
+          <Chips items={CATS} active={q ? '' : cat} onPick={pickCat} />
         </div>
-
         <button
           onClick={() => setShowSetup((v) => !v)}
-          className="ml-auto flex items-center gap-2 rounded-full bg-yt-chip px-3 py-1.5 text-xs font-medium hover:bg-yt-chip2"
+          className="mb-3 flex shrink-0 items-center gap-2 rounded-full bg-yt-chip px-3 py-1.5 text-xs font-medium hover:bg-yt-chip2"
         >
           <span className={`h-2 w-2 rounded-full ${!checking && signedIn ? 'bg-emerald-500' : 'bg-yt-sub'}`} />
           {checking ? 'Đang kiểm tra…' : signedIn ? 'Đã có tài khoản' : 'Chưa đăng nhập'}
@@ -202,10 +199,25 @@ export default function BiliPage() {
 
       {showSetup && <Setup status={status} checking={checking} onCheck={check} />}
 
-      {/* ---- chip thể loại, giống trang chủ ---- */}
-      <div className="mt-3">
-        <Chips items={CATS} active={q ? '' : cat} onPick={pickCat} />
-      </div>
+      {/* ---- phim đã ghim: một hàng ngang ở đầu trang Đề xuất ---- */}
+      {cat === 'home' && !q && pins.length > 0 && (
+        <section className="mb-6">
+          <div className="mb-3 flex items-baseline justify-between">
+            <h2 className="text-base font-medium">Phim đã ghim</h2>
+            {pins.length > 4 && (
+              <button onClick={() => pickCat('pinned')} className="text-xs font-medium text-yt-blue hover:underline">
+                Xem tất cả ({pins.length})
+              </button>
+            )}
+          </div>
+          <div className="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 min-[1900px]:grid-cols-5">
+            {pins.slice(0, 4).map((v, i) => (
+              <VideoCard key={v.id} v={v} index={i} />
+            ))}
+          </div>
+          <h2 className="mb-3 mt-8 text-base font-medium">Đề xuất trên Bilibili</h2>
+        </section>
+      )}
 
       {q && <h1 className="mb-4 mt-1 text-xl font-bold">Kết quả cho “{q}”</h1>}
 
@@ -223,7 +235,14 @@ export default function BiliPage() {
         <p className="py-10 text-center text-sm text-yt-sub">Bạn chưa xem gì trên Bilibili.</p>
       )}
 
-      {!loading && failed && !isHistory && (
+      {!loading && isPinned && !items.length && (
+        <p className="py-10 text-center text-sm text-yt-sub">
+          Chưa ghim phim nào. Rê chuột lên một phim rồi bấm biểu tượng ghim ở góc ảnh, hoặc bấm
+          Ghim phim khi đang xem.
+        </p>
+      )}
+
+      {!loading && failed && !isLocal && (
         <div className="mx-auto mt-6 max-w-xl rounded-xl bg-yt-elev p-4 text-sm text-yt-sub">
           <p>
             {query
@@ -245,7 +264,7 @@ export default function BiliPage() {
         </div>
       )}
 
-      {!loading && done && !failed && items.length > 0 && !isHistory && (
+      {!loading && done && !failed && items.length > 0 && !isLocal && (
         <p className="py-10 text-center text-sm text-yt-sub">Hết rồi</p>
       )}
     </div>

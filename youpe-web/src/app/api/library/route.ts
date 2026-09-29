@@ -11,7 +11,8 @@ export const dynamic = 'force-dynamic';
  * Bảng `library` thực chất là "danh sách các thứ có id", không riêng gì video —
  * kênh và danh sách phát nhét vừa y như cũ, khỏi phải dựng thêm bảng.
  */
-const LISTS = ['history', 'later', 'liked', 'playlists', 'subs'];
+// `bilipins` = phim Bilibili đã ghim
+const LISTS = ['history', 'later', 'liked', 'playlists', 'subs', 'bilipins'];
 const unauthorized = () => NextResponse.json({ error: 'chưa đăng nhập' }, { status: 401 });
 
 /** GET /api/library?list=history */

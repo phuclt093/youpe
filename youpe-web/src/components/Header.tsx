@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import Logo from './Logo';
 import AuthMenu from './AuthMenu';
 import NavButtons from './NavButtons';
@@ -30,7 +30,24 @@ function youtubeIdFromUrl(raw: string): string {
 export default function Header({ onToggleMenu }: { onToggleMenu: () => void }) {
   const router = useRouter();
   const params = useSearchParams();
+  const pathname = usePathname();
   const [q, setQ] = useState(params.get('q') ?? '');
+
+  /*
+    Tìm ở đâu: YouTube hay Bilibili.
+
+    Mặc định theo ngữ cảnh — đang ở tab Bilibili, đang xem phim Bilibili, hay đang
+    xem kết quả Bilibili thì tìm tiếp trên Bilibili; còn lại là YouTube. Bấm nút nguồn
+    ở đầu ô tìm kiếm để đổi tay.
+  */
+  const contextSrc: 'yt' | 'bili' =
+    pathname.startsWith('/bili') ||
+    (pathname === '/watch' && (params.get('v') ?? '').startsWith('bili_')) ||
+    (pathname === '/results' && params.get('src') === 'bili')
+      ? 'bili'
+      : 'yt';
+  const [src, setSrc] = useState<'yt' | 'bili'>(contextSrc);
+  useEffect(() => setSrc(contextSrc), [contextSrc]);
   const [sugs, setSugs] = useState<string[]>([]);
   const [openSug, setOpenSug] = useState(false);
   const [mobileSearch, setMobileSearch] = useState(false);
@@ -97,7 +114,7 @@ export default function Header({ onToggleMenu }: { onToggleMenu: () => void }) {
       return;
     }
 
-    router.push(`/results?q=${encodeURIComponent(t)}`);
+    router.push(`/results?q=${encodeURIComponent(t)}${src === 'bili' ? '&src=bili' : ''}`);
   };
 
   return (
@@ -132,7 +149,26 @@ export default function Header({ onToggleMenu }: { onToggleMenu: () => void }) {
             của :focus-visible bên trong — nhìn như ô bị vỡ.
           */}
           <div className="search-focus flex w-full overflow-hidden rounded-full border border-yt-border bg-yt-bg2">
-          <div className="flex min-w-0 flex-1 items-center pl-5 pr-2">
+          <div className="flex min-w-0 flex-1 items-center pl-1.5 pr-2">
+            {/*
+              Nút nguồn: cùng kiểu chấm màu + tên với thanh chuyển nguồn bên phải.
+              Chỉ có hai nguồn nên bấm là đổi luôn, khỏi mở menu.
+            */}
+            <button
+              type="button"
+              onClick={() => {
+                setSrc((s) => (s === 'yt' ? 'bili' : 'yt'));
+                inputRef.current?.focus();
+              }}
+              title={src === 'bili' ? 'Đang tìm trên Bilibili — bấm để đổi sang YouTube' : 'Đang tìm trên YouTube — bấm để đổi sang Bilibili'}
+              className="mr-2 flex shrink-0 items-center gap-1.5 rounded-full bg-yt-chip px-2.5 py-1 text-xs font-medium hover:bg-yt-chip2"
+            >
+              <span className={`h-2 w-2 rounded-full ${src === 'bili' ? 'bg-sky-400' : 'bg-red-500'}`} />
+              {src === 'bili' ? 'Bilibili' : 'YouTube'}
+              <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 text-yt-sub" fill="currentColor" aria-hidden>
+                <path d="M7 10l5 5 5-5z" />
+              </svg>
+            </button>
             <input
               ref={inputRef}
               value={q}
@@ -142,7 +178,7 @@ export default function Header({ onToggleMenu }: { onToggleMenu: () => void }) {
               }}
               onFocus={() => setOpenSug(true)}
               onKeyDown={(e) => e.key === 'Enter' && go(q)}
-              placeholder="Tìm kiếm  ( / )"
+              placeholder={src === 'bili' ? 'Tìm trên Bilibili  ( / )' : 'Tìm kiếm  ( / )'}
               className="h-10 w-full bg-transparent text-base outline-none placeholder:text-yt-sub/80"
             />
             {q && (

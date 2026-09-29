@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Thumb } from '@/components/VideoCard';
+import { Thumb, SourceLine, isBili } from '@/components/VideoCard';
 import { viPublished } from '@/lib/format';
 import { CloseIcon, PlaylistIcon, VerifiedIcon } from '@/components/Icons';
 import EmptyState from '@/components/EmptyState';
@@ -95,6 +95,8 @@ export default function ResultsPage() {
   const router = useRouter();
   const pathname = usePathname();
   const q = sp.get('q') ?? '';
+  /** Nguồn tìm kiếm: YouTube (mặc định) hay Bilibili */
+  const src: 'yt' | 'bili' = sp.get('src') === 'bili' ? 'bili' : 'yt';
 
   // Bộ lọc nằm trên URL: bấm Back quay lại đúng bộ lọc cũ, gửi link cho người khác cũng giữ nguyên
   const current = useMemo(() => {
@@ -112,6 +114,13 @@ export default function ResultsPage() {
   const [channels, setChannels] = useState<ChannelItem[]>([]);
   const [playlists, setPlaylists] = useState<PlaylistItem[]>([]);
   const [loading, setLoading] = useState(true);
+  // bản mới nhất của danh sách, để hàm tải thêm lọc trùng mà không phải đọc trong setState
+  const videosRef = useRef<VideoItem[]>([]);
+  videosRef.current = videos;
+  // Bilibili: phân trang khi cuộn
+  const [biliPage, setBiliPage] = useState(1);
+  const [biliMore, setBiliMore] = useState(false);
+  const [biliLoadingMore, setBiliLoadingMore] = useState(false);
 
   const apply = (next: Partial<Record<Key, string>>, replaceAll = false) => {
     const p = new URLSearchParams();
@@ -144,6 +153,27 @@ export default function ResultsPage() {
     if (!q) return;
     let alive = true;
     setLoading(true);
+
+    if (src === 'bili') {
+      setChannels([]);
+      setPlaylists([]);
+      setBiliPage(1);
+      setBiliMore(false);
+      fetch(`/api/bili/search?q=${encodeURIComponent(q)}&page=1`)
+        .then((r) => r.json())
+        .then((j) => {
+          if (!alive) return;
+          const list: VideoItem[] = j.items ?? [];
+          setVideos(list);
+          setBiliMore(list.length > 0);
+        })
+        .catch(() => alive && setVideos([]))
+        .finally(() => alive && setLoading(false));
+      return () => {
+        alive = false;
+      };
+    }
+
     fetch(`/api/search?q=${encodeURIComponent(q)}&${queryString}`)
       .then((r) => r.json())
       .then((j) => {
@@ -162,7 +192,46 @@ export default function ResultsPage() {
     return () => {
       alive = false;
     };
-  }, [q, queryString]);
+  }, [q, queryString, src]);
+
+  /* ---------- Bilibili: cuộn tới cuối thì lấy trang kế ---------- */
+  const loadMoreBili = useCallback(() => {
+    if (src !== 'bili' || loading || biliLoadingMore || !biliMore) return;
+    const next = biliPage + 1;
+    setBiliLoadingMore(true);
+    fetch(`/api/bili/search?q=${encodeURIComponent(q)}&page=${next}`)
+      .then((r) => r.json())
+      .then((j) => {
+        const fresh: VideoItem[] = j.items ?? [];
+        const seen = new Set(videosRef.current.map((v) => v.id));
+        const add = fresh.filter((v) => !seen.has(v.id));
+        // trang mới toàn trùng lặp nghĩa là nguồn đã hết
+        if (add.length) setVideos((prev) => [...prev, ...add]);
+        else setBiliMore(false);
+        setBiliPage(next);
+      })
+      .catch(() => setBiliMore(false))
+      .finally(() => setBiliLoadingMore(false));
+  }, [src, loading, biliLoadingMore, biliMore, biliPage, q]);
+
+  const sentinel = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = sentinel.current;
+    if (!el || src !== 'bili') return;
+    const io = new IntersectionObserver((e) => e[0]?.isIntersecting && loadMoreBili(), {
+      rootMargin: '600px',
+    });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [loadMoreBili, src]);
+
+  /** Đổi nguồn, giữ nguyên từ khoá; bộ lọc YouTube không áp dụng cho Bilibili nên bỏ */
+  const switchSrc = (next: 'yt' | 'bili') => {
+    if (next === src) return;
+    router.push(`${pathname}?q=${encodeURIComponent(q)}${next === 'bili' ? '&src=bili' : ''}`, {
+      scroll: false,
+    });
+  };
 
   // Esc đóng hộp bộ lọc
   useEffect(() => {
@@ -186,7 +255,31 @@ export default function ResultsPage() {
 
   return (
     <div className="mx-auto max-w-[1280px] px-4 pb-16 pt-4 sm:px-6">
-      {/* ---- chip + nút Bộ lọc ---- */}
+      {/* ---- nguồn tìm kiếm ---- */}
+      <div className="mb-4 flex items-center gap-1 border-b border-yt-border">
+        {(
+          [
+            ['yt', 'YouTube', 'bg-red-500'],
+            ['bili', 'Bilibili', 'bg-sky-400'],
+          ] as const
+        ).map(([key, label, dot]) => (
+          <button
+            key={key}
+            onClick={() => switchSrc(key)}
+            className={`-mb-px flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+              src === key
+                ? 'border-yt-text text-yt-text'
+                : 'border-transparent text-yt-sub hover:text-yt-text'
+            }`}
+          >
+            <span className={`h-2 w-2 rounded-full ${dot}`} />
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* ---- chip + nút Bộ lọc (chỉ YouTube) ---- */}
+      {src === 'yt' && (
       <div className="mb-5 flex items-center gap-3">
         <div className="no-scrollbar flex min-w-0 flex-1 gap-3 overflow-x-auto">
           {CHIPS.map((c) => (
@@ -217,6 +310,7 @@ export default function ResultsPage() {
           </svg>
         </button>
       </div>
+      )}
 
       {/* ---- hộp bộ lọc ---- */}
       {panel && (
@@ -337,12 +431,31 @@ export default function ResultsPage() {
           )}
       </div>
 
-      {empty && (
+      {/* Bilibili: chỗ canh để tải thêm khi cuộn tới */}
+      {src === 'bili' && (
+        <>
+          {biliLoadingMore && (
+            <p className="py-6 text-center text-sm text-yt-sub">Đang tải thêm…</p>
+          )}
+          <div ref={sentinel} className="h-4" />
+        </>
+      )}
+
+      {empty && src === 'yt' && (
         <EmptyState
           title={`Không có kết quả cho "${q}"`}
           hint={activeCount ? 'Thử bỏ bớt bộ lọc, hoặc dùng từ khoá ngắn hơn.' : 'Thử từ khoá ngắn hơn, hoặc bỏ bớt dấu.'}
           actionLabel={activeCount ? 'Xoá bộ lọc' : 'Về trang chủ'}
           actionHref={activeCount ? `/results?q=${encodeURIComponent(q)}` : '/'}
+        />
+      )}
+
+      {empty && src === 'bili' && (
+        <EmptyState
+          title={`Bilibili không có kết quả cho "${q}"`}
+          hint="Thử từ khoá khác, tên phim bằng tiếng Việt hoặc tiếng Anh. Nếu từ khoá nào cũng trống thì có thể bilibili.tv vừa đổi cách tìm kiếm — mở /api/bili/debug để xem."
+          actionLabel="Tìm trên YouTube"
+          actionHref={`/results?q=${encodeURIComponent(q)}`}
         />
       )}
     </div>
@@ -403,7 +516,11 @@ function VideoRow({ v, q, index }: { v: VideoItem; q: string; index: number }) {
           {viPublished(v.publishedText)}
         </p>
 
-        {v.author.name && (
+        {isBili(v.id) ? (
+          <div className="my-3 flex items-center text-xs text-yt-sub">
+            <SourceLine v={v} small />
+          </div>
+        ) : v.author.name && (
           <div className="my-3 flex items-center gap-2 text-xs text-yt-sub">
             {v.author.avatar && (
               // eslint-disable-next-line @next/next/no-img-element
